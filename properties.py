@@ -1,9 +1,9 @@
 # type: ignore
 """Where the add-on stores its data (see DESIGN.md, "Where data is stored").
 
-- Armature data: the rig profile (armature.retargetor_profile), shared by the objects using that armature.
-- Object: the per-character state (object.retargetor): source armature, manual bone list, translation scale.
-- Scene: only which character the panel is editing (scene.retargetor_target).
+- Armature data: the rig profile (armature.interpose_profile), shared by the objects using that armature.
+- Object: the per-character state (object.interpose): source armature, manual bone list, translation scale.
+- Scene: only which character the panel is editing (scene.interpose_target).
 
 Every property can be edited in a library override (LIBRARY_OVERRIDABLE), and items can be added to the
 collections of an override (USE_INSERTION).
@@ -40,13 +40,13 @@ def is_scene_armature(scene, obj):
     return obj.type == 'ARMATURE' and scene in obj.users_scene
 
 
-# While True, the update callback of RTGTR_BonePairItem.target_name does nothing (list filled from code)
+# While True, the update callback of INTERPOSE_BonePairItem.target_name does nothing (list filled from code)
 _target_update_suspended = False
 
 
 @contextmanager
 def suspended_target_update():
-    """Temporarily disable the update callback of RTGTR_BonePairItem.target_name"""
+    """Temporarily disable the update callback of INTERPOSE_BonePairItem.target_name"""
     global _target_update_suspended
     previous = _target_update_suspended
     _target_update_suspended = True
@@ -80,7 +80,7 @@ def update_target_bone(self, _context):
 
 ### Per-character state (Object)
 
-class RTGTR_BonePairItem(PropertyGroup):
+class INTERPOSE_BonePairItem(PropertyGroup):
     """One row of the manual bone list: a source bone copied onto a target bone"""
     src_name: StringProperty(name="Source Bone", override=OVERRIDABLE)
     target_name: StringProperty(name="Target Bone", update=update_target_bone, override=OVERRIDABLE)
@@ -103,7 +103,7 @@ class RTGTR_BonePairItem(PropertyGroup):
         return BonePair(self.src_name, self.target_name, self.offset_mode, self.use_translation, correction)
 
 
-class RTGTR_PromptSegment(PropertyGroup):
+class INTERPOSE_PromptSegment(PropertyGroup):
     """One prompt segment of a character's track (segment_track keeps the track contiguous)"""
     prompt: StringProperty(name="Prompt", description="Text describing the motion of this segment",
                            update=segment_track.update_redraw, override=OVERRIDABLE)
@@ -117,11 +117,11 @@ class RTGTR_PromptSegment(PropertyGroup):
     generated: StringProperty(name="Generated", options={'HIDDEN'}, override=OVERRIDABLE)
 
 
-class RTGTR_CharacterState(PropertyGroup):
+class INTERPOSE_CharacterState(PropertyGroup):
     """Retargeting state of one character (the target armature object)"""
     source: PointerProperty(type=bpy.types.Object, name="Source Armature", poll=is_armature,
                             description="Armature whose animation is copied onto this one", override=OVERRIDABLE)
-    bones: CollectionProperty(type=RTGTR_BonePairItem, name="Bone List", override=OVERRIDABLE_COLLECTION)
+    bones: CollectionProperty(type=INTERPOSE_BonePairItem, name="Bone List", override=OVERRIDABLE_COLLECTION)
     bones_active_index: IntProperty(name="Active Bone", default=0, override=OVERRIDABLE)
     translation_scale: FloatProperty(
         name="Translation Scale",
@@ -145,7 +145,7 @@ class RTGTR_CharacterState(PropertyGroup):
     range_duration: IntProperty(name="Duration", default=120, min=2,
                                 description="Number of frames of the custom range", override=OVERRIDABLE)
     # Prompt segments: a track generated as a whole (none: the prompt, seed and range above)
-    segments: CollectionProperty(type=RTGTR_PromptSegment, name="Prompt Segments",
+    segments: CollectionProperty(type=INTERPOSE_PromptSegment, name="Prompt Segments",
                                  override=OVERRIDABLE_COLLECTION)
     segments_active_index: IntProperty(name="Active Segment", default=0, min=0,
                                        update=segment_track.update_redraw, override=OVERRIDABLE)
@@ -171,12 +171,12 @@ class RTGTR_CharacterState(PropertyGroup):
 
 ### Rig profile (Armature data)
 
-class RTGTR_Correction(PropertyGroup):
+class INTERPOSE_Correction(PropertyGroup):
     backend: StringProperty(name="Backend", description="Id of the motion model backend", override=OVERRIDABLE)
     rotation: FloatVectorProperty(name="Rotation", size=4, default=IDENTITY_QUATERNION, override=OVERRIDABLE)
 
 
-class RTGTR_RoleBinding(PropertyGroup):
+class INTERPOSE_RoleBinding(PropertyGroup):
     """The rig bones playing one humanoid role"""
     role: StringProperty(name="Role", description="Humanoid role id", override=OVERRIDABLE)
     read_bone: StringProperty(
@@ -189,7 +189,7 @@ class RTGTR_RoleBinding(PropertyGroup):
     offset_mode: EnumProperty(items=offset_items, name="Offset Mode", override=OVERRIDABLE)
     use_translation: BoolProperty(name="Use Translation", description="This role carries the root motion",
                                   override=OVERRIDABLE)
-    corrections: CollectionProperty(type=RTGTR_Correction, override=OVERRIDABLE_COLLECTION)
+    corrections: CollectionProperty(type=INTERPOSE_Correction, override=OVERRIDABLE_COLLECTION)
 
     @property
     def label(self):
@@ -197,13 +197,13 @@ class RTGTR_RoleBinding(PropertyGroup):
         return role.label if role else self.role
 
 
-class RTGTR_FkPair(PropertyGroup):
+class INTERPOSE_FkPair(PropertyGroup):
     fk_control: StringProperty(name="FK Control", override=OVERRIDABLE)
     followed_bone: StringProperty(name="Followed Bone", description="Bone whose orientation the FK control takes",
                                   override=OVERRIDABLE)
 
 
-class RTGTR_BoneRef(PropertyGroup):
+class INTERPOSE_BoneRef(PropertyGroup):
     bone: StringProperty(name="Bone", override=OVERRIDABLE)
 
 
@@ -215,14 +215,14 @@ ik_snap_mode_items = (
 )
 
 
-class RTGTR_IkSnap(PropertyGroup):
+class INTERPOSE_IkSnap(PropertyGroup):
     ik_control: StringProperty(name="IK Control", override=OVERRIDABLE)
     followed_bone: StringProperty(name="Followed Bone", description="Bone the IK control is snapped to",
                                   override=OVERRIDABLE)
     mode: EnumProperty(name="Mode", items=ik_snap_mode_items, default=core_profile.IK_FOLLOW, override=OVERRIDABLE)
 
 
-class RTGTR_LimbSnap(PropertyGroup):
+class INTERPOSE_LimbSnap(PropertyGroup):
     """How to snap one limb's FK controls to its IK pose and switch it to FK"""
     name: StringProperty(name="Limb", override=OVERRIDABLE)
     switch_bone: StringProperty(name="Switch Bone", description="Bone holding the IK/FK switch property",
@@ -231,18 +231,18 @@ class RTGTR_LimbSnap(PropertyGroup):
                                     override=OVERRIDABLE)
     fk_value: FloatProperty(name="FK Value", description="Value of the switch property in FK", default=1.0,
                             override=OVERRIDABLE)
-    controls: CollectionProperty(type=RTGTR_FkPair, override=OVERRIDABLE_COLLECTION)
-    ik_controls: CollectionProperty(type=RTGTR_BoneRef, override=OVERRIDABLE_COLLECTION,
+    controls: CollectionProperty(type=INTERPOSE_FkPair, override=OVERRIDABLE_COLLECTION)
+    ik_controls: CollectionProperty(type=INTERPOSE_BoneRef, override=OVERRIDABLE_COLLECTION,
                                     description="Controls posing the limb in IK: their keys make key poses")
-    ik_snap: CollectionProperty(type=RTGTR_IkSnap, override=OVERRIDABLE_COLLECTION,
+    ik_snap: CollectionProperty(type=INTERPOSE_IkSnap, override=OVERRIDABLE_COLLECTION,
                                 description="How the IK controls are snapped to the generated FK motion, in order")
 
 
-class RTGTR_RigProfile(PropertyGroup):
+class INTERPOSE_RigProfile(PropertyGroup):
     """How this armature maps to the humanoid roles"""
-    roles: CollectionProperty(type=RTGTR_RoleBinding, override=OVERRIDABLE_COLLECTION)
+    roles: CollectionProperty(type=INTERPOSE_RoleBinding, override=OVERRIDABLE_COLLECTION)
     roles_active_index: IntProperty(default=0, override=OVERRIDABLE)
-    limbs: CollectionProperty(type=RTGTR_LimbSnap, override=OVERRIDABLE_COLLECTION)
+    limbs: CollectionProperty(type=INTERPOSE_LimbSnap, override=OVERRIDABLE_COLLECTION)
     limbs_active_index: IntProperty(default=0, override=OVERRIDABLE)
     source: StringProperty(name="Preset", description="Preset the profile was loaded from (empty: set up by hand "
                                                       "or imported)", override=OVERRIDABLE)
@@ -313,53 +313,53 @@ class RTGTR_RigProfile(PropertyGroup):
 
 
 classes = (
-    RTGTR_BonePairItem,
-    RTGTR_PromptSegment,
-    RTGTR_CharacterState,
-    RTGTR_Correction,
-    RTGTR_RoleBinding,
-    RTGTR_FkPair,
-    RTGTR_BoneRef,
-    RTGTR_IkSnap,
-    RTGTR_LimbSnap,
-    RTGTR_RigProfile,
+    INTERPOSE_BonePairItem,
+    INTERPOSE_PromptSegment,
+    INTERPOSE_CharacterState,
+    INTERPOSE_Correction,
+    INTERPOSE_RoleBinding,
+    INTERPOSE_FkPair,
+    INTERPOSE_BoneRef,
+    INTERPOSE_IkSnap,
+    INTERPOSE_LimbSnap,
+    INTERPOSE_RigProfile,
 )
 
 
 def update_target(scene, _context):
     """A character whose rig profile is empty gets the preset matching its bones (Rigify...), or the roles found on
     its skeleton (Mixamo...)"""
-    target = scene.retargetor_target
+    target = scene.interpose_target
     if target is not None and target.type == 'ARMATURE':
         from .profile_operators import apply_detected_profile
         apply_detected_profile(target.data)
 
 
 def get_character(context):
-    """(target armature object, its RTGTR_CharacterState) for the character edited in the panel, or (None, None),
+    """(target armature object, its INTERPOSE_CharacterState) for the character edited in the panel, or (None, None),
     also when the target isn't in the scene anymore (deleted: the pointer alone keeps it alive)"""
-    target = context.scene.retargetor_target
+    target = context.scene.interpose_target
     if target is None or not is_scene_armature(context.scene, target):
         return None, None
-    return target, target.retargetor
+    return target, target.interpose
 
 
 def register():
     for cls in classes:
         bpy.utils.register_class(cls)
 
-    bpy.types.Armature.retargetor_profile = PointerProperty(type=RTGTR_RigProfile, override=OVERRIDABLE)
-    bpy.types.Object.retargetor = PointerProperty(type=RTGTR_CharacterState, override=OVERRIDABLE)
-    bpy.types.Scene.retargetor_target = PointerProperty(
+    bpy.types.Armature.interpose_profile = PointerProperty(type=INTERPOSE_RigProfile, override=OVERRIDABLE)
+    bpy.types.Object.interpose = PointerProperty(type=INTERPOSE_CharacterState, override=OVERRIDABLE)
+    bpy.types.Scene.interpose_target = PointerProperty(
         type=bpy.types.Object, name="Target Armature", poll=is_scene_armature, update=update_target,
         description="Character edited in the Retarget panel. Its setup is stored on the object itself. An empty "
                     "rig profile gets the preset matching the armature's bones, if there is one")
 
 
 def unregister():
-    del bpy.types.Scene.retargetor_target
-    del bpy.types.Object.retargetor
-    del bpy.types.Armature.retargetor_profile
+    del bpy.types.Scene.interpose_target
+    del bpy.types.Object.interpose
+    del bpy.types.Armature.interpose_profile
 
     for cls in reversed(classes):
         bpy.utils.unregister_class(cls)

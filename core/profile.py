@@ -10,7 +10,8 @@ from dataclasses import dataclass, field
 from .retarget.pairs import BonePair, OFFSET_MODES
 from .roles import get_role
 
-PROFILE_FORMAT = "retargetor.rig_profile"
+PROFILE_FORMAT = "interpose.rig_profile"
+LEGACY_PROFILE_FORMATS = ("retargetor.rig_profile",)  # written before the add-on was renamed
 PROFILE_VERSION = 1
 
 # Directions of compose()
@@ -142,7 +143,7 @@ class RigProfile:
     @classmethod
     def from_dict(cls, data):
         """Build a profile from the dict written by to_dict. Raises ValueError on a wrong format or unknown role."""
-        if not isinstance(data, dict) or data.get("format") != PROFILE_FORMAT:
+        if not isinstance(data, dict) or data.get("format") not in (PROFILE_FORMAT,) + LEGACY_PROFILE_FORMATS:
             raise ValueError(f"Not a rig profile: the JSON must be an object with \"format\": \"{PROFILE_FORMAT}\".")
         if data.get("version", 0) > PROFILE_VERSION:
             raise ValueError(f"The rig profile was written by a newer version (format version {data['version']}).")

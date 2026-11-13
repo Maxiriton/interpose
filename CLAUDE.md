@@ -2,7 +2,7 @@
 
 ## Project
 
-Retargetor is a Blender extension (Blender 5.2+) that retargets animation between armatures with different rest poses. It is the first piece of a larger extension: the user poses their own rig, an AI motion model generates the movement between the key poses, and the result comes back onto the rig. Read [ROADMAP.md](ROADMAP.md) for the goal, the architecture, the phases and the decisions.
+Interpose is a Blender extension (Blender 5.2+): the user poses their own rig at a few key frames, an AI motion model generates the movement between the key poses, and the result comes back onto the rig's controls as keys. It started as a retargeting tool between armatures with different rest poses (called Retargetor until 0.1.0), which is still its core and one of its panels. Read [ROADMAP.md](ROADMAP.md) for the goal, the architecture, the phases and the decisions.
 
 ## Architecture rules
 
@@ -17,18 +17,18 @@ Retargetor is a Blender extension (Blender 5.2+) that retargets animation betwee
 | File | Role |
 |---|---|
 | `__init__.py` | Entry point, bone selection handler |
-| `properties.py` | Stored data: rig profile on `Armature.retargetor_profile`, character state on `Object.retargetor` (prompt, seed, custom range, prompt segments), `Scene.retargetor_target` (which character the panel edits) |
-| `migration.py` | `load_post` handler moving the old `scene.retarget_*` setups onto the target object, and giving the presets' old names (`RENAMED_PRESETS`) their current one |
+| `properties.py` | Stored data: rig profile on `Armature.interpose_profile`, character state on `Object.interpose` (prompt, seed, custom range, prompt segments), `Scene.interpose_target` (which character the panel edits) |
+| `migration.py` | `load_post` handler moving what Retargetor saved to Interpose's names (`RENAMED_PROPERTIES`), the old `scene.retarget_*` setups onto the target object, and giving the presets' old names (`RENAMED_PRESETS`) their current one |
 | `setup_operators.py` | Bone list setup, translation scale, JSON import/export, corrections |
 | `retarget_operators.py` | Snapping and baking operators |
 | `profile_operators.py` | Rig profile: presets (fitted: optional roles whose bones are missing left out), skeleton detection (`detect_profile`: preset, else `core.rig_detect`; cached per armature), Detect / Assign / Select / Clear a role, Check Rig (`checked`: one check per profile, run by Generate), JSON, Snap FK to IK |
 | `rig_check.py` | The rig check: `profile_problems` (static) and `control_problems` (each write control turned, each IK limb snapped and switched both ways; pose put back) |
-| `ui.py` | Sidebar panels and lists (Retarget, Rig Setup with its IK/FK Limbs and Advanced sub-panels, Generate); the animation editors' header (model state, Generate or progress, bands toggle, Retargetor menu) |
+| `ui.py` | Sidebar panels and lists (Retarget, Rig Setup with its IK/FK Limbs and Advanced sub-panels, Generate); the animation editors' header (model state, Generate or progress, bands toggle, Interpose menu) |
 | `preferences.py` | Add-on preferences: active backend, models' folder, developer option, each backend's settings (declared by the backend) and environment (`setup_<id>`: installed by the add-on or existing) |
 | `model_setup.py` | The models' setup, Blender side: the environment's Python and paths (`worker_for`), install / check / remove / sign-in operators, a timer following them, the Models section of the preferences, `setup_problem` for the headers |
 | `generation.py` | Generate In-betweens step by step (`GenerationTask`): key poses, model armature, request, result baked as `GENERATED` keys (`MotionWriter`), IK controls snapped back (`IkSnapWriter`); the whole track or one segment alone (`segment_chunk`: the motion around it as context) |
 | `generated_keys.py` | Edited `GENERATED` keys become Keyframes as soon as they are edited: values recorded after each generation, compared by a depsgraph handler. Also records the user keys the add-on makes itself (FK snap...), and `clear()` removes both |
-| `segment_track.py` | A character's prompt segments (`Object.retargetor.segments`) read and written as a `core.segments` track, kept contiguous when a start or end is edited; generated state |
+| `segment_track.py` | A character's prompt segments (`Object.interpose.segments`) read and written as a `core.segments` track, kept contiguous when a start or end is edited; generated state |
 | `segment_operators.py` | Add, remove, split, select prompt segments, previous / next |
 | `segment_draw.py` | Prompt segments drawn as bands in the Dope Sheet and Graph Editor (layout and hit test as plain functions), View menu toggle |
 | `segment_mouse.py` | The bands handled with the mouse (keymap items passing the event through off the bands): hover, click, drag, popup, menu |
@@ -55,7 +55,7 @@ A backend is a folder in `backends/` with a `Backend` subclass (`backend.py`) an
 
 ## Conventions
 
-- Operators: `bl_idname = "retargetor.<name>"`, classes prefixed `RTGTR_`.
+- Operators: `bl_idname = "interpose.<name>"`, classes prefixed `INTERPOSE_`.
 - Helpers raise `KeyError` / `ValueError` with an explicit message; operators catch them and `self.report()` them.
 - All UI text and messages in English.
 - Target bones use quaternion rotation; keep quaternion signs continuous between keyframes.
@@ -75,7 +75,13 @@ A backend is a folder in `backends/` with a `Backend` subclass (`backend.py`) an
 - Machine-specific paths (Kimodo venv, test files, real rigs) are in `CLAUDE.local.md`, which is not committed.
 - `test_model_setup.py` uses the Kimodo venv as an existing environment when `--kimodo-python` is given; `--models-folder` (Kimodo installed by the add-on there) checks it and generates with it. Processes started from the Claude desktop app see `%LOCALAPPDATA%` redirected to the app's package folder: never install there for a test (Blender can't see it), use another folder. The install itself is tested with fake steps (`tests/unit/test_setup.py`); a real install downloads GB: ask the user first, and point `models_folder` and `HF_HOME` to a scratch folder for a throwaway one.
 
+## Release
+
+- Version in `blender_manifest.toml` only (`bl_info` is gone: an extension doesn't use it). Package: `"C:\Program Files\Blender Foundation\Blender 5.2\blender.exe" --factory-startup --command extension validate` then `extension build --output-dir <folder>` in the repository; never commit the .zip. `paths_exclude_pattern` keeps the tests, spikes and project notes out of it. `run_tests.py` builds it and installs it in a Blender with a scratch user folder (`test_package.py`: registers, generates with the interpolation backend, holds only the add-on).
+- Published on GitHub Releases, not on extensions.blender.org: its terms refuse an extension needing external components downloaded from elsewhere (the models).
+- Stored names (`Object.interpose`, `Armature.interpose_profile`, the `interpose.` operators...) are part of users' files and scripts: renaming one needs a migration in `migration.py` and a test with a file from the version before (`tests/blender/retargetor_setup.py`).
+
 ## Git
 
 - `main` always stays a working add-on.
-- One short-lived branch per milestone (for example `refactor/retarget-core`, `backends/kimodo`), merged through a PR on `Maxiriton/retargetor`.
+- One short-lived branch per milestone (for example `refactor/retarget-core`, `backends/kimodo`), merged through a PR on `Maxiriton/interpose`.

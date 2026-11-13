@@ -1,5 +1,5 @@
 # type: ignore
-"""Operators editing the rig profile of the active armature (armature.retargetor_profile), and the FK snap."""
+"""Operators editing the rig profile of the active armature (armature.interpose_profile), and the FK snap."""
 import json
 import os
 import re
@@ -147,7 +147,7 @@ def describe_source(source):
 def apply_detected_profile(armature):
     """If the armature's rig profile is empty and editable, fill it with detect_profile(). Returns the source
     ("" if nothing was applied)."""
-    profile = armature.retargetor_profile
+    profile = armature.interpose_profile
     if len(profile.roles) > 0 or not armature.is_editable:
         return ""
     detected = detect_profile(armature)
@@ -174,8 +174,8 @@ def missing_bones(armature, rig_profile):
 
 
 def apply_profile(operator, armature, rig_profile, source, preset_name=""):
-    armature.retargetor_profile.from_core(rig_profile)
-    armature.retargetor_profile.source = preset_name
+    armature.interpose_profile.from_core(rig_profile)
+    armature.interpose_profile.source = preset_name
     missing = missing_bones(armature, rig_profile)
     if missing:
         operator.report({'WARNING'}, f"Profile loaded from {source}, but {len(missing)} bone(s) are missing in "
@@ -194,9 +194,9 @@ def profile_editable(context):
     return obj is not None and obj.data.is_editable
 
 
-class RTGTR_OT_ProfileAddRoles(Operator):
+class INTERPOSE_OT_ProfileAddRoles(Operator):
     """Add the humanoid roles missing from the rig profile, with their default settings"""
-    bl_idname = "retargetor.profile_add_roles"
+    bl_idname = "interpose.profile_add_roles"
     bl_label = "Add Roles"
     bl_options = {'REGISTER', 'UNDO'}
 
@@ -205,7 +205,7 @@ class RTGTR_OT_ProfileAddRoles(Operator):
         return profile_editable(context)
 
     def execute(self, context):
-        profile = active_armature(context).data.retargetor_profile
+        profile = active_armature(context).data.interpose_profile
         existing = {b.role for b in profile.roles}
         added = 0
         for role in ROLES:
@@ -224,9 +224,9 @@ def preset_enum_items(_self, _context):
     return [(key, name, f"Load the {name} preset") for key, (_path, name) in preset_files().items()]
 
 
-class RTGTR_OT_ProfileLoadPreset(Operator):
+class INTERPOSE_OT_ProfileLoadPreset(Operator):
     """Replace the rig profile with a preset"""
-    bl_idname = "retargetor.profile_load_preset"
+    bl_idname = "interpose.profile_load_preset"
     bl_label = "Load Preset"
     bl_options = {'REGISTER', 'UNDO'}
     bl_property = "preset"
@@ -256,9 +256,9 @@ class RTGTR_OT_ProfileLoadPreset(Operator):
         return {'FINISHED'}
 
 
-class RTGTR_OT_ProfileExport(Operator, ExportHelper):
+class INTERPOSE_OT_ProfileExport(Operator, ExportHelper):
     """Export the rig profile of the active armature to JSON"""
-    bl_idname = "retargetor.profile_export_json"
+    bl_idname = "interpose.profile_export_json"
     bl_label = "Export Profile"
     bl_options = {'REGISTER'}
 
@@ -271,7 +271,7 @@ class RTGTR_OT_ProfileExport(Operator, ExportHelper):
 
     def execute(self, context):
         try:
-            data = active_armature(context).data.retargetor_profile.to_core().to_dict()
+            data = active_armature(context).data.interpose_profile.to_core().to_dict()
             with open(self.filepath, 'w', encoding='utf-8') as f:
                 json.dump(data, f, indent=4)
         except (OSError, ValueError) as e:
@@ -281,9 +281,9 @@ class RTGTR_OT_ProfileExport(Operator, ExportHelper):
         return {'FINISHED'}
 
 
-class RTGTR_OT_ProfileImport(Operator, ImportHelper):
+class INTERPOSE_OT_ProfileImport(Operator, ImportHelper):
     """Replace the rig profile of the active armature with a JSON file"""
-    bl_idname = "retargetor.profile_import_json"
+    bl_idname = "interpose.profile_import_json"
     bl_label = "Import Profile"
     bl_options = {'REGISTER', 'UNDO'}
 
@@ -304,10 +304,10 @@ class RTGTR_OT_ProfileImport(Operator, ImportHelper):
         return {'FINISHED'}
 
 
-class RTGTR_OT_ProfileDetect(Operator):
+class INTERPOSE_OT_ProfileDetect(Operator):
     """Set the rig profile up from the armature's bones: the preset matching them (Rigify, Auto-Rig Pro, CloudRig),
     else the roles found on its skeleton from their names and hierarchy (Mixamo, Unreal, SMPL, VRM...)"""
-    bl_idname = "retargetor.profile_detect"
+    bl_idname = "interpose.profile_detect"
     bl_label = "Detect Bones"
     bl_options = {'REGISTER', 'UNDO'}
 
@@ -316,7 +316,7 @@ class RTGTR_OT_ProfileDetect(Operator):
         return profile_editable(context)
 
     def invoke(self, context, event):
-        if len(active_armature(context).data.retargetor_profile.roles) > 0:
+        if len(active_armature(context).data.interpose_profile.roles) > 0:
             return context.window_manager.invoke_confirm(
                 self, event, title="Detect Bones", message="Replace the rig profile with the detected bones?",
                 confirm_text="Replace")
@@ -325,7 +325,7 @@ class RTGTR_OT_ProfileDetect(Operator):
     def execute(self, context):
         armature = active_armature(context).data
         preset = detect_preset(armature)
-        profile = armature.retargetor_profile
+        profile = armature.interpose_profile
         clear_check(armature)
         if preset is not None:
             profile.from_core(preset[1])
@@ -374,9 +374,9 @@ def active_bone_name(context):
     return bone.name if bone is not None else ""
 
 
-class RTGTR_OT_ProfileAssign(Operator):
+class INTERPOSE_OT_ProfileAssign(Operator):
     """Give a role the active bone: select the bone in the viewport, then click"""
-    bl_idname = "retargetor.profile_assign"
+    bl_idname = "interpose.profile_assign"
     bl_label = "Assign Active Bone"
     bl_options = {'REGISTER', 'UNDO'}
 
@@ -404,7 +404,7 @@ class RTGTR_OT_ProfileAssign(Operator):
             self.report({'ERROR'}, str(e.args[0]))
             return {'CANCELLED'}
         name = active_bone_name(context)
-        profile = armature.retargetor_profile
+        profile = armature.interpose_profile
         item = _binding(profile, self.role, create=True)
         if self.which in ('BOTH', 'READ'):
             item.read_bone = name
@@ -417,9 +417,9 @@ class RTGTR_OT_ProfileAssign(Operator):
         return {'FINISHED'}
 
 
-class RTGTR_OT_ProfileClearRole(Operator):
+class INTERPOSE_OT_ProfileClearRole(Operator):
     """Take the role out of the rig profile: the motion won't be read or written there"""
-    bl_idname = "retargetor.profile_clear_role"
+    bl_idname = "interpose.profile_clear_role"
     bl_label = "Clear Role"
     bl_options = {'REGISTER', 'UNDO'}
 
@@ -431,7 +431,7 @@ class RTGTR_OT_ProfileClearRole(Operator):
 
     def execute(self, context):
         armature = active_armature(context).data
-        profile = armature.retargetor_profile
+        profile = armature.interpose_profile
         for i, item in enumerate(profile.roles):
             if item.role == self.role:
                 profile.roles.remove(i)
@@ -440,9 +440,9 @@ class RTGTR_OT_ProfileClearRole(Operator):
         return {'CANCELLED'}
 
 
-class RTGTR_OT_ProfileSelectRole(Operator):
+class INTERPOSE_OT_ProfileSelectRole(Operator):
     """Select the role's bones in the viewport (Pose Mode), to see them"""
-    bl_idname = "retargetor.profile_select_role"
+    bl_idname = "interpose.profile_select_role"
     bl_label = "Select Bones"
     bl_options = {'REGISTER', 'UNDO'}
 
@@ -459,7 +459,7 @@ class RTGTR_OT_ProfileSelectRole(Operator):
 
     def execute(self, context):
         obj = active_armature(context)
-        item = _binding(obj.data.retargetor_profile, self.role)
+        item = _binding(obj.data.interpose_profile, self.role)
         if item is None:
             return {'CANCELLED'}
         names = [name for name in dict.fromkeys((item.write_bone, item.read_bone)) if name]
@@ -508,10 +508,10 @@ def checked(rig_obj, rig_profile, view_layer):
     return problems if problems is not None else run_check(rig_obj, rig_profile, view_layer)
 
 
-class RTGTR_OT_CheckRig(Operator):
+class INTERPOSE_OT_CheckRig(Operator):
     """Check the rig profile: the bones of each role, then what the controls do (each one turned, each IK limb
     snapped and switched). The pose is put back, nothing is keyed"""
-    bl_idname = "retargetor.check_rig"
+    bl_idname = "interpose.check_rig"
     bl_label = "Check Rig"
     bl_options = {'REGISTER'}
 
@@ -522,7 +522,7 @@ class RTGTR_OT_CheckRig(Operator):
     def execute(self, context):
         obj = active_armature(context)
         try:
-            rig_profile = obj.data.retargetor_profile.to_core()
+            rig_profile = obj.data.interpose_profile.to_core()
         except ValueError as e:
             self.report({'ERROR'}, str(e))
             return {'CANCELLED'}
@@ -559,10 +559,10 @@ def parse_frames(text):
     return sorted(frames)
 
 
-class RTGTR_OT_SnapFkToIk(Operator):
+class INTERPOSE_OT_SnapFkToIk(Operator):
     """Snap the FK controls of the profile's limbs to their current pose on the given frames, key them,
     then switch the limbs to FK. The IK keys are kept"""
-    bl_idname = "retargetor.snap_fk_to_ik"
+    bl_idname = "interpose.snap_fk_to_ik"
     bl_label = "Snap FK to IK"
     bl_options = {'REGISTER', 'UNDO'}
 
@@ -573,13 +573,13 @@ class RTGTR_OT_SnapFkToIk(Operator):
     @classmethod
     def poll(cls, context):
         obj = active_armature(context)
-        return obj is not None and obj.is_editable and len(obj.data.retargetor_profile.limbs) > 0
+        return obj is not None and obj.is_editable and len(obj.data.interpose_profile.limbs) > 0
 
     def execute(self, context):
         obj = active_armature(context)
         try:
             frames = parse_frames(self.frames) or [context.scene.frame_current]
-            limbs = obj.data.retargetor_profile.to_core().limbs
+            limbs = obj.data.interpose_profile.to_core().limbs
             snap_fk_on_frames(obj, limbs, context.scene, context.view_layer, frames)
         except (KeyError, ValueError) as e:
             self.report({'ERROR'}, str(e.args[0]) if isinstance(e, KeyError) else str(e))
@@ -590,16 +590,16 @@ class RTGTR_OT_SnapFkToIk(Operator):
 
 ### Registration
 classes = (
-    RTGTR_OT_ProfileDetect,
-    RTGTR_OT_ProfileAssign,
-    RTGTR_OT_ProfileClearRole,
-    RTGTR_OT_ProfileSelectRole,
-    RTGTR_OT_CheckRig,
-    RTGTR_OT_ProfileAddRoles,
-    RTGTR_OT_ProfileLoadPreset,
-    RTGTR_OT_ProfileExport,
-    RTGTR_OT_ProfileImport,
-    RTGTR_OT_SnapFkToIk,
+    INTERPOSE_OT_ProfileDetect,
+    INTERPOSE_OT_ProfileAssign,
+    INTERPOSE_OT_ProfileClearRole,
+    INTERPOSE_OT_ProfileSelectRole,
+    INTERPOSE_OT_CheckRig,
+    INTERPOSE_OT_ProfileAddRoles,
+    INTERPOSE_OT_ProfileLoadPreset,
+    INTERPOSE_OT_ProfileExport,
+    INTERPOSE_OT_ProfileImport,
+    INTERPOSE_OT_SnapFkToIk,
 )
 
 def register():

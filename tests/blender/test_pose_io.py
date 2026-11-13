@@ -32,8 +32,8 @@ def main():
     checks = bootstrap.Checks("test_pose_io")
     source, _target = bootstrap.make_test_scene()
     bootstrap.register_addon()
-    from retargetor.core.motion import Motion
-    from retargetor.core.pose_io import read_motion, read_pose, write_motion, write_pose
+    from interpose.core.motion import Motion
+    from interpose.core.pose_io import read_motion, read_pose, write_motion, write_pose
 
     scene = bpy.context.scene
     view_layer = bpy.context.view_layer

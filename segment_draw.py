@@ -102,14 +102,14 @@ def shown_characters(context):
     """[(object, is the panel's character)]: the panel's character if it has segments, then the other selected
     armatures of the scene with segments, by name"""
     scene = context.scene
-    if not getattr(scene, "retargetor_show_segments", True):
+    if not getattr(scene, "interpose_show_segments", True):
         return []
-    target = scene.retargetor_target
+    target = scene.interpose_target
     result = []
-    if target is not None and is_scene_armature(scene, target) and len(target.retargetor.segments) > 0:
+    if target is not None and is_scene_armature(scene, target) and len(target.interpose.segments) > 0:
         result.append((target, True))
     others = [obj for obj in context.selected_objects
-              if obj.type == 'ARMATURE' and obj != target and len(obj.retargetor.segments) > 0]
+              if obj.type == 'ARMATURE' and obj != target and len(obj.interpose.segments) > 0]
     result += [(obj, False) for obj in sorted(others, key=lambda o: o.name)]
     return result
 
@@ -123,7 +123,7 @@ def region_bands(context, region):
     def frame_to_x(frame):
         return view.view_to_region(frame, 0.0, clip=False)[0]
 
-    characters = [(obj.name, target, [(s.frame_start, s.frame_end) for s in obj.retargetor.segments])
+    characters = [(obj.name, target, [(s.frame_start, s.frame_end) for s in obj.interpose.segments])
                   for obj, target in shown]
     space = context.space_data
     tag_x0 = GRAPH_SCALE_WIDTH * ui_scale if space is not None and space.type == 'GRAPH_EDITOR' else 0.0
@@ -323,7 +323,7 @@ def draw_bands():
     for band, (rig, target) in zip(bands, shown):
         if band.y1 > height:
             break
-        state = rig.retargetor
+        state = rig.interpose
         dim = 1.0 if target else 0.55
         tag_right = band.tag_x1
         count = len(band.bars)
@@ -395,7 +395,7 @@ def draw_bands():
 
 def draw_view_menu(self, _context):
     self.layout.separator()
-    self.layout.prop(_context.scene, "retargetor_show_segments")
+    self.layout.prop(_context.scene, "interpose_show_segments")
 
 
 _VIEW_MENUS = ("DOPESHEET_MT_view", "GRAPH_MT_view", "TIME_MT_view")
@@ -403,9 +403,9 @@ _handlers = []
 
 
 def register():
-    bpy.types.Scene.retargetor_show_segments = bpy.props.BoolProperty(
+    bpy.types.Scene.interpose_show_segments = bpy.props.BoolProperty(
         name="Show Prompt Segments", default=True, update=lambda _self, _context: segment_track.tag_redraw(),
-        description="Show the characters' prompt segments at the bottom of the animation editors (Retargetor)")
+        description="Show the characters' prompt segments at the bottom of the animation editors (Interpose)")
     for space in (bpy.types.SpaceDopeSheetEditor, bpy.types.SpaceGraphEditor):
         _handlers.append((space, space.draw_handler_add(draw_bands, (), 'WINDOW', 'POST_PIXEL')))
     for name in _VIEW_MENUS:
@@ -428,4 +428,4 @@ def unregister():
     for space, handler in _handlers:
         space.draw_handler_remove(handler, 'WINDOW')
     _handlers.clear()
-    del bpy.types.Scene.retargetor_show_segments
+    del bpy.types.Scene.interpose_show_segments

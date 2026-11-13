@@ -33,9 +33,9 @@ def draw(function, *args):
 def main(scratch, kimodo_python=None):
     checks = bootstrap.Checks("test_model_setup")
     bootstrap.register_addon()
-    from retargetor import model_setup, ui
-    from retargetor.backends import registry
-    from retargetor.backends.setup import checks as setup_checks
+    from interpose import model_setup, ui
+    from interpose.backends import registry
+    from interpose.backends.setup import checks as setup_checks
 
     prefs = bootstrap.set_backend("kimodo")
     prefs.models_folder = os.path.join(scratch, "models")
@@ -67,7 +67,7 @@ def main(scratch, kimodo_python=None):
     checks.check(errors == [], "the editors' header draws with a model not installed")
 
     if not bpy.app.online_access:
-        checks.check(refused(bpy.ops.retargetor.model_install, backend_id="kimodo"),
+        checks.check(refused(bpy.ops.interpose.model_install, backend_id="kimodo"),
                      "no install without online access")
 
     # An existing environment
@@ -77,7 +77,7 @@ def main(scratch, kimodo_python=None):
     checks.check(model_setup.setup_problem(context, kimodo) == "Python not found", "an existing Python not found")
     run = model_setup.start_check(context, kimodo).wait(30)
     checks.check(run.items[0].fix == setup_checks.FIX_PYTHON, "the check asks for another Python")
-    checks.check(refused(bpy.ops.retargetor.model_remove, backend_id="kimodo"),
+    checks.check(refused(bpy.ops.interpose.model_remove, backend_id="kimodo"),
                  "an existing environment isn't removed")
 
     if kimodo_python:
@@ -95,7 +95,7 @@ def main(scratch, kimodo_python=None):
         checks.check(setup_checks.ready(run.items), "the existing Kimodo environment is ready")
         checks.check(draw(model_setup.draw_models, context, prefs) == [], "the Models section draws a check")
 
-    installed = os.environ.get("RETARGETOR_MODELS_FOLDER")
+    installed = os.environ.get("INTERPOSE_MODELS_FOLDER")
     if installed:
         # Kimodo as the add-on installed it
         setup.environment = 'MANAGED'

@@ -7,7 +7,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
-SKELETON_FORMAT = "retargetor.skeleton"
+SKELETON_FORMAT = "interpose.skeleton"
+LEGACY_SKELETON_FORMATS = ("retargetor.skeleton",)  # written before the add-on was renamed
 SKELETON_VERSION = 1
 
 
@@ -69,7 +70,7 @@ class Skeleton:
     @classmethod
     def from_dict(cls, data):
         """Raises ValueError on a wrong format."""
-        if not isinstance(data, dict) or data.get("format") != SKELETON_FORMAT:
+        if not isinstance(data, dict) or data.get("format") not in (SKELETON_FORMAT,) + LEGACY_SKELETON_FORMATS:
             raise ValueError(f"Not a skeleton: the JSON must be an object with \"format\": \"{SKELETON_FORMAT}\".")
         if data.get("version", 0) > SKELETON_VERSION:
             raise ValueError(f"The skeleton was written by a newer version (format version {data['version']}).")

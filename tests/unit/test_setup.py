@@ -46,13 +46,13 @@ class TestMachine(unittest.TestCase):
 class TestPaths(unittest.TestCase):
     def test_default_root(self):
         self.assertEqual(paths.default_root("windows", {"LOCALAPPDATA": r"C:\Users\A\AppData\Local"}),
-                         os.path.join(r"C:\Users\A\AppData\Local", "Retargetor"))
+                         os.path.join(r"C:\Users\A\AppData\Local", "Interpose"))
         self.assertEqual(paths.default_root("linux", {}, home="/home/a"),
-                         os.path.join("/home/a", ".local", "share", "retargetor"))
+                         os.path.join("/home/a", ".local", "share", "interpose"))
         self.assertEqual(paths.default_root("linux", {"XDG_DATA_HOME": "/data"}, home="/home/a"),
-                         os.path.join("/data", "retargetor"))
+                         os.path.join("/data", "interpose"))
         self.assertEqual(paths.default_root("macos", {}, home="/Users/a"),
-                         os.path.join("/Users/a", "Library", "Application Support", "Retargetor"))
+                         os.path.join("/Users/a", "Library", "Application Support", "Interpose"))
 
     def test_layout(self):
         layout = paths.Layout("/models", "kimodo", "windows")

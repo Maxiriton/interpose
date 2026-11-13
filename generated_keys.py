@@ -3,14 +3,14 @@
 generated keys").
 
 Blender has no "key edited" event, and keying over a GENERATED key keeps it GENERATED. So the add-on remembers the
-GENERATED keys it wrote (frames and values, on the character: object.retargetor["generated_keys"]), and a
+GENERATED keys it wrote (frames and values, on the character: object.interpose["generated_keys"]), and a
 depsgraph handler compares them whenever a character's action changes. A GENERATED key whose value changed, or
 which was moved to another frame, is retyped as a Keyframe, with the other channels of the same property on that
 frame (the 4 values of a quaternion). Keys retyped that way go back to GENERATED if their values come back (a
 transform cancelled with a right click). The same check runs before each generation.
 
 The add-on also makes user keys (type Keyframe) itself, on the key poses: FK controls snapped to the IK pose, IK
-controls keyed as they are, an IK/FK switch keyed in FK. They are remembered too (object.retargetor["added_keys"]),
+controls keyed as they are, an IK/FK switch keyed in FK. They are remembered too (object.interpose["added_keys"]),
 so clear() can remove them with the GENERATED keys, unless the animator changed them since: the controls holding
 them are often on hidden bone collections, out of the animator's reach.
 """
@@ -76,7 +76,7 @@ def record(rig):
                 curves.append({"path": fcurve.data_path, "index": fcurve.array_index,
                                "frames": frames[generated].tolist(), "values": values[generated].tolist(),
                                "retyped": []})
-    rig.retargetor[RECORD] = curves
+    rig.interpose[RECORD] = curves
 
 
 def snapshot(rig):
@@ -98,7 +98,7 @@ def record_added(rig, before):
     has changed follow their new values (unless the animator changed them first); the animator's own keys are
     never recorded."""
     recorded = {(entry["path"], entry["index"]): dict(zip((round(f, 3) for f in entry["frames"]), entry["values"]))
-                for entry in rig.retargetor.get(ADDED, [])}
+                for entry in rig.interpose.get(ADDED, [])}
     bag = _channelbag(rig)
     if bag is not None:
         for fcurve in bag.fcurves:
@@ -121,7 +121,7 @@ def record_added(rig, before):
                     keys[frame] = value
             if keys:
                 recorded[curve] = keys
-    rig.retargetor[ADDED] = [{"path": path, "index": index, "frames": sorted(keys),
+    rig.interpose[ADDED] = [{"path": path, "index": index, "frames": sorted(keys),
                               "values": [keys[f] for f in sorted(keys)]}
                              for (path, index), keys in recorded.items()]
 
@@ -148,7 +148,7 @@ def clear(rig):
     put back to rest. Forgets both records. Returns (GENERATED keys removed, added keys removed, added keys kept
     because they were edited, channels put back to rest)."""
     added = {(entry["path"], entry["index"]): dict(zip((round(f, 3) for f in entry["frames"]), entry["values"]))
-             for entry in rig.retargetor.get(ADDED, [])}
+             for entry in rig.interpose.get(ADDED, [])}
     bag = _channelbag(rig)
     generated = removed = kept = reset = 0
     if bag is not None:
@@ -182,17 +182,17 @@ def clear(rig):
             if _reset_channel(rig, path, index):
                 reset += 1
     for name in (RECORD, ADDED):
-        if name in rig.retargetor:
-            del rig.retargetor[name]
+        if name in rig.interpose:
+            del rig.interpose[name]
     return generated, removed, kept, reset
 
 
 def has_added(rig):
-    return bool(rig.retargetor.get(ADDED))
+    return bool(rig.interpose.get(ADDED))
 
 
 def has_record(rig):
-    return bool(rig.retargetor.get(RECORD))
+    return bool(rig.interpose.get(RECORD))
 
 
 def _point_at(fcurve, frame):
@@ -205,7 +205,7 @@ def _point_at(fcurve, frame):
 def retype_edited(rig):
     """Retype the edited GENERATED keys of the rig as Keyframes, and the keys retyped that way whose values came
     back to GENERATED. Returns (keys retyped as Keyframes, keys back to GENERATED)."""
-    entries = rig.retargetor.get(RECORD)
+    entries = rig.interpose.get(RECORD)
     bag = _channelbag(rig)
     if not entries or bag is None:
         return 0, 0

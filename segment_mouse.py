@@ -49,17 +49,17 @@ def select_mouse(context):
 def _select(context, rig, index=None):
     """Make the character the panel's, and the segment its active one"""
     scene = context.scene
-    if scene.retargetor_target != rig:
-        scene.retargetor_target = rig
-    state = rig.retargetor
+    if scene.interpose_target != rig:
+        scene.interpose_target = rig
+    state = rig.interpose
     if index is not None and state.segments_active_index != index:
         state.segments_active_index = index
     segment_track.tag_redraw()
 
 
-class RTGTR_OT_SegmentHover(Operator):
+class INTERPOSE_OT_SegmentHover(Operator):
     """Highlight the prompt segment under the mouse"""
-    bl_idname = "retargetor.segment_hover"
+    bl_idname = "interpose.segment_hover"
     bl_label = "Prompt Segment Hover"
     bl_options = {'INTERNAL'}
 
@@ -76,9 +76,9 @@ class RTGTR_OT_SegmentHover(Operator):
         return {'PASS_THROUGH'}
 
 
-class RTGTR_OT_SegmentClick(Operator):
+class INTERPOSE_OT_SegmentClick(Operator):
     """Select a prompt segment and drag it or its boundaries; its menu with the other mouse button"""
-    bl_idname = "retargetor.segment_click"
+    bl_idname = "interpose.segment_click"
     bl_label = "Move Prompt Segment"
     bl_options = {'REGISTER', 'UNDO'}
 
@@ -93,7 +93,7 @@ class RTGTR_OT_SegmentClick(Operator):
             if index is None:
                 return {'PASS_THROUGH'}
             _select(context, rig, index)
-            bpy.ops.wm.call_menu(name=RTGTR_MT_SegmentMenu.bl_idname)
+            bpy.ops.wm.call_menu(name=INTERPOSE_MT_SegmentMenu.bl_idname)
             return {'FINISHED'}
         if part == 'TAG':
             _select(context, rig)
@@ -104,12 +104,12 @@ class RTGTR_OT_SegmentClick(Operator):
             return {'FINISHED'}
         if part == 'ADD':
             _select(context, rig)
-            bpy.ops.retargetor.segment_add()
+            bpy.ops.interpose.segment_add()
             return {'FINISHED'}
         _select(context, rig, index)
         self.rig_name = rig.name
         self.index, self.part = index, part
-        self.original = segment_track.read_track(rig.retargetor)
+        self.original = segment_track.read_track(rig.interpose)
         self.start_x = event.mouse_region_x
         self.start_frame = context.region.view2d.region_to_view(event.mouse_region_x, 0)[0]
         self.dragging = False
@@ -129,7 +129,7 @@ class RTGTR_OT_SegmentClick(Operator):
                        else self.original[-1].end_frame + 1)
             track = core_segments.move_boundary(self.original, boundary, current + delta, min_frames, max_frames)
         rig = bpy.data.objects.get(self.rig_name)
-        segment_track.write_track(rig.retargetor, track)
+        segment_track.write_track(rig.interpose, track)
         segment = track[self.index]
         context.area.header_text_set(f"Segment {self.index + 1}: frames {segment.start_frame}-{segment.end_frame} "
                                      f"({segment.frame_count} frames)")
@@ -149,7 +149,7 @@ class RTGTR_OT_SegmentClick(Operator):
         if event.type == 'ESC' or (event.type in {'LEFTMOUSE', 'RIGHTMOUSE'} and event.value == 'PRESS'):
             rig = bpy.data.objects.get(self.rig_name)
             if rig is not None:
-                segment_track.write_track(rig.retargetor, self.original)
+                segment_track.write_track(rig.interpose, self.original)
             self._end(context)
             return {'CANCELLED'}
         if event.type in {'LEFTMOUSE', 'RIGHTMOUSE'} and event.value == 'RELEASE':
@@ -158,9 +158,9 @@ class RTGTR_OT_SegmentClick(Operator):
         return {'RUNNING_MODAL'}
 
 
-class RTGTR_OT_SegmentEdit(Operator):
+class INTERPOSE_OT_SegmentEdit(Operator):
     """Edit a prompt segment in a popup: prompt, seed and frames"""
-    bl_idname = "retargetor.segment_edit"
+    bl_idname = "interpose.segment_edit"
     bl_label = "Edit Prompt Segment"
     bl_options = {'REGISTER', 'UNDO'}
 
@@ -169,9 +169,9 @@ class RTGTR_OT_SegmentEdit(Operator):
 
     def _item(self):
         rig = bpy.data.objects.get(self.character)
-        if rig is None or not 0 <= self.index < len(rig.retargetor.segments):
+        if rig is None or not 0 <= self.index < len(rig.interpose.segments):
             return None, None
-        return rig, rig.retargetor.segments[self.index]
+        return rig, rig.interpose.segments[self.index]
 
     def invoke(self, context, event):
         if not self.character:
@@ -181,8 +181,8 @@ class RTGTR_OT_SegmentEdit(Operator):
                     return {'PASS_THROUGH'}
                 rig, index, _part = hit
             else:
-                rig = context.scene.retargetor_target
-                index = rig.retargetor.segments_active_index if rig is not None else -1
+                rig = context.scene.interpose_target
+                index = rig.interpose.segments_active_index if rig is not None else -1
             if rig is None:
                 return {'CANCELLED'}
             self.character, self.index = rig.name, index
@@ -198,7 +198,7 @@ class RTGTR_OT_SegmentEdit(Operator):
         if item is None:
             layout.label(text="No segment")
             return
-        layout.label(text=f"{rig.name}: segment {self.index + 1} / {len(rig.retargetor.segments)}",
+        layout.label(text=f"{rig.name}: segment {self.index + 1} / {len(rig.interpose.segments)}",
                      icon='SEQ_STRIP_META')
         caps = active_backend(context).capabilities
         layout.enabled = rig.is_editable
@@ -208,44 +208,44 @@ class RTGTR_OT_SegmentEdit(Operator):
         row.prop(item, "frame_end")
         if caps.seed:
             layout.prop(item, "seed")
-        if rig == context.scene.retargetor_target:
+        if rig == context.scene.interpose_target:
             layout.operator_context = 'INVOKE_DEFAULT'
-            layout.operator("retargetor.regenerate_segment", text=segment_track.generate_verb(item),
+            layout.operator("interpose.regenerate_segment", text=segment_track.generate_verb(item),
                             icon='FILE_REFRESH').index = self.index
 
     def execute(self, context):
         return {'FINISHED'}
 
 
-class RTGTR_MT_SegmentMenu(Menu):
+class INTERPOSE_MT_SegmentMenu(Menu):
     """What can be done on the active prompt segment"""
-    bl_idname = "RTGTR_MT_segment_menu"
+    bl_idname = "INTERPOSE_MT_segment_menu"
     bl_label = "Prompt Segment"
 
     def draw(self, context):
         layout = self.layout
         layout.operator_context = 'INVOKE_DEFAULT'
-        rig = context.scene.retargetor_target
-        index = rig.retargetor.segments_active_index if rig is not None else 0
-        props = layout.operator("retargetor.segment_edit", text="Edit...", icon='GREASEPENCIL')
+        rig = context.scene.interpose_target
+        index = rig.interpose.segments_active_index if rig is not None else 0
+        props = layout.operator("interpose.segment_edit", text="Edit...", icon='GREASEPENCIL')
         if rig is not None:
             props.character, props.index = rig.name, index
-        layout.operator("retargetor.segment_split", icon='MOD_EDGESPLIT')
-        layout.operator("retargetor.segment_add", icon='ADD')
-        layout.operator("retargetor.segment_remove", icon='REMOVE')
+        layout.operator("interpose.segment_split", icon='MOD_EDGESPLIT')
+        layout.operator("interpose.segment_add", icon='ADD')
+        layout.operator("interpose.segment_remove", icon='REMOVE')
         layout.separator()
-        item = rig.retargetor.segments[index] if rig is not None and index < len(rig.retargetor.segments) else None
-        props = layout.operator("retargetor.regenerate_segment", text=f"{segment_track.generate_verb(item)} Segment",
+        item = rig.interpose.segments[index] if rig is not None and index < len(rig.interpose.segments) else None
+        props = layout.operator("interpose.regenerate_segment", text=f"{segment_track.generate_verb(item)} Segment",
                                 icon='FILE_REFRESH')
         props.index = index
-        layout.operator("retargetor.generate_inbetweens", text="Generate Whole Track", icon='ANIM')
+        layout.operator("interpose.generate_inbetweens", text="Generate Whole Track", icon='ANIM')
 
 
 classes = (
-    RTGTR_OT_SegmentHover,
-    RTGTR_OT_SegmentClick,
-    RTGTR_OT_SegmentEdit,
-    RTGTR_MT_SegmentMenu,
+    INTERPOSE_OT_SegmentHover,
+    INTERPOSE_OT_SegmentClick,
+    INTERPOSE_OT_SegmentEdit,
+    INTERPOSE_MT_SegmentMenu,
 )
 
 # Keymaps of the editors showing the bands: (keymap name, space type)
@@ -262,10 +262,10 @@ def register():
     for name, space_type in KEYMAPS:
         keymap = keyconfig.keymaps.new(name=name, space_type=space_type)
         for event_type, value, idname, props in (
-                ('MOUSEMOVE', 'ANY', RTGTR_OT_SegmentHover.bl_idname, {}),
-                ('LEFTMOUSE', 'DOUBLE_CLICK', RTGTR_OT_SegmentEdit.bl_idname, {}),
-                ('LEFTMOUSE', 'PRESS', RTGTR_OT_SegmentClick.bl_idname, {"button": 'LEFT'}),
-                ('RIGHTMOUSE', 'PRESS', RTGTR_OT_SegmentClick.bl_idname, {"button": 'RIGHT'})):
+                ('MOUSEMOVE', 'ANY', INTERPOSE_OT_SegmentHover.bl_idname, {}),
+                ('LEFTMOUSE', 'DOUBLE_CLICK', INTERPOSE_OT_SegmentEdit.bl_idname, {}),
+                ('LEFTMOUSE', 'PRESS', INTERPOSE_OT_SegmentClick.bl_idname, {"button": 'LEFT'}),
+                ('RIGHTMOUSE', 'PRESS', INTERPOSE_OT_SegmentClick.bl_idname, {"button": 'RIGHT'})):
             item = keymap.keymap_items.new(idname, event_type, value)
             for prop, prop_value in props.items():
                 setattr(item.properties, prop, prop_value)

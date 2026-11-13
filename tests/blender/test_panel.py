@@ -83,9 +83,9 @@ class CheckingLayout:
 
 def draw_panels(panels=None):
     errors = []
-    from retargetor import ui
-    for panel in panels or (ui.RETARGETOR_PT_RetargetPanel, ui.RETARGETOR_PT_RigProfilePanel,
-                            ui.RETARGETOR_PT_RigLimbsPanel, ui.RETARGETOR_PT_RigAdvancedPanel, ui.RTGTR_MT_ProfileFiles):
+    from interpose import ui
+    for panel in panels or (ui.INTERPOSE_PT_RetargetPanel, ui.INTERPOSE_PT_RigProfilePanel,
+                            ui.INTERPOSE_PT_RigLimbsPanel, ui.INTERPOSE_PT_RigAdvancedPanel, ui.INTERPOSE_MT_ProfileFiles):
         fake = type("Panel", (), {"layout": CheckingLayout(errors)})()
         panel.draw(fake, bpy.context)
     return errors
@@ -109,28 +109,28 @@ def main(scratch):
     view_layer = bpy.context.view_layer
 
     checks.check(draw_panels() == [], "panels draw with no character")
-    checks.check(not bpy.ops.retargetor.setup_bone_list.poll(), "Setup Bone list needs a character")
+    checks.check(not bpy.ops.interpose.setup_bone_list.poll(), "Setup Bone list needs a character")
 
-    scene.retargetor_target = target
-    state = target.retargetor
+    scene.interpose_target = target
+    state = target.interpose
     state.source = source
     checks.check(draw_panels() == [], "panels draw with an empty bone list")
 
     # Bone list, guessed from the names
-    checks.check(bpy.ops.retargetor.setup_bone_list() == {'FINISHED'}, "Setup Bone list")
+    checks.check(bpy.ops.interpose.setup_bone_list() == {'FINISHED'}, "Setup Bone list")
     checks.check([(i.src_name, i.target_name) for i in state.bones] ==
                  [("Hips", "hips"), ("Spine", "spine")] + LIMBS, "bones matched by name")
     for item in state.bones:
         item.offset_mode = 'REST_OFFSET' if item.src_name in ("Hips", "Spine") else 'ROLL'
         item.use_translation = item.src_name == "Hips"
-    checks.check(bpy.ops.retargetor.auto_translation_scale() == {'FINISHED'}, "Auto translation scale")
+    checks.check(bpy.ops.interpose.auto_translation_scale() == {'FINISHED'}, "Auto translation scale")
     # Z extent of the mapped bone heads: 1.65 - 0.6 on the target, 1.35 - 0.5 on the source
     checks.close(state.translation_scale, 1.05 / 0.85, 1e-6, "translation scale = height ratio")
     view_layer.objects.active = target
     checks.check(draw_panels() == [], "panels draw with a bone list")
 
     # Bake over the scene range
-    checks.check(bpy.ops.retargetor.simple_retarget() == {'FINISHED'}, "Retarget (bake)")
+    checks.check(bpy.ops.interpose.simple_retarget() == {'FINISHED'}, "Retarget (bake)")
     checks.below(directions_match(source, target, range(1, 11)), 1e-3, "limbs follow the source (deg)")
     scene.frame_set(10)
     src_move = source.matrix_world @ source.pose.bones["Hips"].head - source.matrix_world @ source.data.bones["Hips"].head_local
@@ -146,17 +146,17 @@ def main(scratch):
     target.animation_data_clear()
     bpy.ops.object.mode_set(mode='POSE')
     scene.frame_set(7)
-    checks.check(bpy.ops.retargetor.snap_full_pose() == {'FINISHED'}, "Snap full pose")
+    checks.check(bpy.ops.interpose.snap_full_pose() == {'FINISHED'}, "Snap full pose")
     checks.below(directions_match(source, target, [7]), 1e-3, "snapped pose follows the source (deg)")
     target.data.bones.active = target.data.bones["forearm.L"]
     target.pose.bones["forearm.L"].rotation_quaternion = (1.0, 0.0, 0.0, 0.0)
-    checks.check(bpy.ops.retargetor.snap_selected_bone() == {'FINISHED'}, "Snap active bone")
+    checks.check(bpy.ops.interpose.snap_selected_bone() == {'FINISHED'}, "Snap active bone")
     checks.below(angle_deg(bone_direction(source, "Forearm.L"), bone_direction(target, "forearm.L")), 1e-3,
                  "active bone snapped (deg)")
 
     # Recording a correction on the forearm
     state.bones_active_index = 3
-    checks.check(bpy.ops.retargetor.record_adjustment() == {'FINISHED'}, "Record Correction")
+    checks.check(bpy.ops.interpose.record_adjustment() == {'FINISHED'}, "Record Correction")
     checks.check(state.is_recording, "recording")
     checks.check(draw_panels() == [], "panels draw while recording")
     extra = Quaternion((0.0, 1.0, 0.0), 0.4)
@@ -164,10 +164,10 @@ def main(scratch):
     pb.rotation_quaternion = pb.rotation_quaternion @ extra
     view_layer.update()
     wanted = (target.matrix_world @ pb.matrix).to_quaternion()
-    checks.check(bpy.ops.retargetor.finish_record() == {'FINISHED'}, "Finish Recording")
+    checks.check(bpy.ops.interpose.finish_record() == {'FINISHED'}, "Finish Recording")
     checks.check(state.bones[3].has_corrective_offset and not state.is_recording, "correction stored")
     pb.rotation_quaternion = (1.0, 0.0, 0.0, 0.0)
-    bpy.ops.retargetor.snap_selected_bone()
+    bpy.ops.interpose.snap_selected_bone()
     view_layer.update()
     got = (target.matrix_world @ pb.matrix).to_quaternion()
     checks.below(wanted.rotation_difference(got).angle * 57.3, 1e-3, "snap applies the correction (deg)")
@@ -178,7 +178,7 @@ def main(scratch):
     state.bones[3].target_name = "forearm.L"
     state.bones[3].has_corrective_offset = True
     state.bones[3].corrective_offset = extra
-    checks.check(bpy.ops.retargetor.clear_record() == {'FINISHED'}, "Clear Record")
+    checks.check(bpy.ops.interpose.clear_record() == {'FINISHED'}, "Clear Record")
     checks.check(not state.bones[3].has_corrective_offset, "correction cleared")
     state.bones[3].has_corrective_offset = True
     state.bones[3].corrective_offset = extra
@@ -186,22 +186,22 @@ def main(scratch):
 
     # JSON round trip onto a second character in the same scene
     path = os.path.join(scratch, "panel_setup.json")
-    checks.check(bpy.ops.retargetor.export_setup_to_json(filepath=path) == {'FINISHED'}, "Export to JSON")
+    checks.check(bpy.ops.interpose.export_setup_to_json(filepath=path) == {'FINISHED'}, "Export to JSON")
     second = bootstrap.make_armature("TGT2", bootstrap.TARGET_BONES, location=(-2.0, 0.0, 0.0))
-    scene.retargetor_target = second
-    second.retargetor.source = source
-    checks.check(bpy.ops.retargetor.import_retarget_json(filepath=path) == {'FINISHED'}, "Import from JSON")
+    scene.interpose_target = second
+    second.interpose.source = source
+    checks.check(bpy.ops.interpose.import_retarget_json(filepath=path) == {'FINISHED'}, "Import from JSON")
     first_rows = [(i.src_name, i.target_name, i.offset_mode, i.use_translation, i.has_corrective_offset,
                    tuple(round(v, 6) for v in i.corrective_offset)) for i in state.bones]
     second_rows = [(i.src_name, i.target_name, i.offset_mode, i.use_translation, i.has_corrective_offset,
-                    tuple(round(v, 6) for v in i.corrective_offset)) for i in second.retargetor.bones]
+                    tuple(round(v, 6) for v in i.corrective_offset)) for i in second.interpose.bones]
     checks.check(first_rows == second_rows, "imported list equals the exported one")
-    checks.close(second.retargetor.translation_scale, state.translation_scale, 1e-6, "scale recomputed on import")
+    checks.close(second.interpose.translation_scale, state.translation_scale, 1e-6, "scale recomputed on import")
 
-    second.retargetor.bones[2].target_name = ""
+    second.interpose.bones[2].target_name = ""
     checks.check(state.bones[2].target_name == "arm.L", "two characters keep separate lists")
     view_layer.objects.active = second
-    checks.check(bpy.ops.retargetor.simple_retarget() == {'FINISHED'}, "bake the second character")
+    checks.check(bpy.ops.interpose.simple_retarget() == {'FINISHED'}, "bake the second character")
     checks.check(target.animation_data is None or target.animation_data.action is None,
                  "the first character is not touched")
 
@@ -209,24 +209,24 @@ def main(scratch):
     bpy.ops.object.mode_set(mode='POSE')
     second.data.bones.active = second.data.bones["shin.L"]
     view_layer.update()
-    checks.check(second.retargetor.bones_active_index == 5, "selecting a target bone selects its row")
+    checks.check(second.interpose.bones_active_index == 5, "selecting a target bone selects its row")
     bpy.ops.object.mode_set(mode='OBJECT')
 
     # Rig profile panel on an armature with a profile
     view_layer.objects.active = target
-    checks.check(bpy.ops.retargetor.profile_add_roles() == {'FINISHED'}, "Add Roles")
-    profile = target.data.retargetor_profile
+    checks.check(bpy.ops.interpose.profile_add_roles() == {'FINISHED'}, "Add Roles")
+    profile = target.data.interpose_profile
     checks.check(len(profile.roles) == 23, "every role added")
     profile.limbs.add().name = "arm.L"
     checks.check(draw_panels() == [], "panels draw with a rig profile")
     path = os.path.join(scratch, "panel_profile.json")
     profile.roles[0].read_bone = "hips"
-    checks.check(bpy.ops.retargetor.profile_export_json(filepath=path) == {'FINISHED'}, "Export Profile")
+    checks.check(bpy.ops.interpose.profile_export_json(filepath=path) == {'FINISHED'}, "Export Profile")
     view_layer.objects.active = second
-    checks.check(bpy.ops.retargetor.profile_import_json(filepath=path) == {'FINISHED'}, "Import Profile")
-    checks.check(second.data.retargetor_profile.roles[0].read_bone == "hips", "profile imported on another armature")
+    checks.check(bpy.ops.interpose.profile_import_json(filepath=path) == {'FINISHED'}, "Import Profile")
+    checks.check(second.data.interpose_profile.roles[0].read_bone == "hips", "profile imported on another armature")
 
-    from retargetor.profile_operators import parse_frames
+    from interpose.profile_operators import parse_frames
     checks.check(parse_frames("1, 61,120") == [1, 61, 120] and parse_frames("3-5, -1") == [-1, 3, 4, 5],
                  "frame lists parsed")
     checks.finish()

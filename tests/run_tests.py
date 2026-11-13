@@ -7,20 +7,22 @@
 Blender 5.2+ is needed (default: the BLENDER environment variable, else the standard Windows install path).
 The unit tests run with Blender's own Python (it has numpy), found next to blender.exe.
 The chain tests need the spike outputs (not committed): they are skipped when missing. Default: spikes/ in this
-repository, or the RETARGETOR_SPIKES environment variable.
-The Kimodo tests run only with --kimodo-python (or the RETARGETOR_KIMODO_PYTHON environment variable): the
+repository, or the INTERPOSE_SPIKES environment variable.
+The Kimodo tests run only with --kimodo-python (or the INTERPOSE_KIMODO_PYTHON environment variable): the
 conversions against Kimodo itself, then generations on the GPU (a few minutes).
 --gui also runs the tests needing Blender's interface (the prompt segments with the mouse): a Blender window
 opens for about a minute, with its own empty user folder (BLENDER_USER_RESOURCES), so your preferences can't be
 touched, and simulated events (the real mouse and keyboard are ignored meanwhile).
 --rigs: a JSON mapping the file keys of tests/fixtures/real_rigs.json to the rigs' files on this machine (not
-committed; default: the RETARGETOR_RIGS environment variable): each rig is set up, checked and generated on, with
+committed; default: the INTERPOSE_RIGS environment variable): each rig is set up, checked and generated on, with
 Kimodo too when --kimodo-python is given. Rigs whose file is missing are skipped.
---models-folder: a models' folder where the add-on installed models (default: the RETARGETOR_MODELS_FOLDER environment
+--models-folder: a models' folder where the add-on installed models (default: the INTERPOSE_MODELS_FOLDER environment
 variable): each model installed there is checked and generates (GPU): Kimodo (a generation), ARDY (base, prompt
 segments, one segment regenerated, the Core checkpoint: a few minutes, 17 GB of video memory). Nothing is installed
 by the tests.
-The migration test builds a legacy file with the add-on as it was before Phase 2 (commit LEGACY_COMMIT).
+The migration test builds a legacy file with the add-on as it was before Phase 2 (commit LEGACY_COMMIT), and the
+rename migration a file made when the add-on was called Retargetor (commit RETARGETOR_COMMIT). The package is built
+(extension validate and build) and installed in a Blender with a scratch user folder (test_package.py).
 """
 import argparse
 import glob
@@ -35,6 +37,8 @@ DEFAULT_BLENDER = r"C:\Program Files\Blender Foundation\Blender 5.2\blender.exe"
 # Last commit before the Phase 2 refactor: its add-on stores the setup in scene.retarget_*
 LEGACY_COMMIT = "62864b7"
 LEGACY_FILES = ["__init__.py", "setup_operators.py", "retarget_operators.py", "ui.py"]
+# Last commit before the add-on was renamed from Retargetor to Interpose
+RETARGETOR_COMMIT = "d55f116"
 
 
 def run_blender(blender, script, args=(), blend=None, env=None):
@@ -48,6 +52,25 @@ def run_blender(blender, script, args=(), blend=None, env=None):
         print(result.stdout[-3000:])
         print(result.stderr[-3000:])
     return ok
+
+
+def test_package(blender, env, scratch):
+    """Validate and build the extension's package, then install it in a Blender with a scratch user folder"""
+    dist, user = os.path.join(scratch, "dist"), os.path.join(scratch, "package_user_resources")
+    os.makedirs(dist)
+    os.makedirs(user)
+    for command in (["validate"], ["build", "--output-dir", dist]):
+        result = subprocess.run([blender, "--factory-startup", "--command", "extension"] + command, cwd=REPO,
+                                capture_output=True, text=True, encoding="utf-8", errors="replace")
+        print(f"extension {command[0]}: {result.stdout.strip().splitlines()[-1] if result.stdout.strip() else ''}")
+        if result.returncode != 0:
+            print(result.stdout[-3000:], result.stderr[-3000:])
+            return False
+    packages = glob.glob(os.path.join(dist, "*.zip"))
+    if len(packages) != 1:
+        print(f"package: expected one zip in {dist}, found {packages}")
+        return False
+    return run_blender(blender, "test_package.py", [packages[0]], env=dict(env, BLENDER_USER_RESOURCES=user))
 
 
 def run_blender_gui(blender, script, blend, env, scratch):
@@ -138,23 +161,25 @@ def run_real_rigs(args, env):
     return results
 
 
-def extract_legacy_addon(folder):
-    archive = subprocess.run(["git", "-C", REPO, "archive", LEGACY_COMMIT, "--"] + LEGACY_FILES,
+def extract_legacy_addon(folder, commit=LEGACY_COMMIT, files=LEGACY_FILES):
+    """The add-on as it was at `commit` (its `files`; None: all but the tests and spikes), extracted in `folder`"""
+    archive = subprocess.run(["git", "-C", REPO, "archive", commit, "--"] + (files or []),
                              capture_output=True, check=True).stdout
     import io
     import tarfile
     with tarfile.open(fileobj=io.BytesIO(archive)) as tar:
-        tar.extractall(folder, filter="data")
+        members = [m for m in tar.getmembers() if not m.name.startswith(("tests/", "spikes/"))]
+        tar.extractall(folder, members=members, filter="data")
 
 
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--blender", default=os.environ.get("BLENDER", DEFAULT_BLENDER))
-    parser.add_argument("--spikes", default=os.environ.get("RETARGETOR_SPIKES", os.path.join(REPO, "spikes")))
-    parser.add_argument("--kimodo-python", default=os.environ.get("RETARGETOR_KIMODO_PYTHON"))
-    parser.add_argument("--models-folder", default=os.environ.get("RETARGETOR_MODELS_FOLDER"),
+    parser.add_argument("--spikes", default=os.environ.get("INTERPOSE_SPIKES", os.path.join(REPO, "spikes")))
+    parser.add_argument("--kimodo-python", default=os.environ.get("INTERPOSE_KIMODO_PYTHON"))
+    parser.add_argument("--models-folder", default=os.environ.get("INTERPOSE_MODELS_FOLDER"),
                         help="models' folder where the add-on installed Kimodo, ARDY")
-    parser.add_argument("--rigs", default=os.environ.get("RETARGETOR_RIGS"),
+    parser.add_argument("--rigs", default=os.environ.get("INTERPOSE_RIGS"),
                         help="JSON mapping the files of tests/fixtures/real_rigs.json to this machine's paths")
     parser.add_argument("--gui", action="store_true", help="also run the tests needing Blender's interface")
     args = parser.parse_args()
@@ -162,10 +187,10 @@ def main():
     results = {}
     results["unit"] = run_unit_tests(blender_python(args.blender))
 
-    env = dict(os.environ, RETARGETOR_SPIKES=args.spikes)
+    env = dict(os.environ, INTERPOSE_SPIKES=args.spikes)
     if args.models_folder:
-        env["RETARGETOR_MODELS_FOLDER"] = args.models_folder
-    with tempfile.TemporaryDirectory(prefix="retargetor_tests_") as scratch:
+        env["INTERPOSE_MODELS_FOLDER"] = args.models_folder
+    with tempfile.TemporaryDirectory(prefix="interpose_tests_") as scratch:
         results["panel"] = run_blender(args.blender, "test_panel.py", [scratch], env=env)
         results["segments"] = run_blender(args.blender, "test_segments.py", env=env)
         results["pose_io"] = run_blender(args.blender, "test_pose_io.py", env=env)
@@ -179,6 +204,7 @@ def main():
         lib_dir = os.path.join(scratch, "library")
         os.makedirs(lib_dir)
         results["library_override"] = run_blender(args.blender, "test_library_override.py", [lib_dir], env=env)
+        results["package"] = test_package(args.blender, env, scratch)
 
         # The Phase 1 Rigify rig with its key poses, made fresh (needs only Rigify)
         rig_dir = os.path.join(scratch, "rig")
@@ -210,6 +236,12 @@ def main():
         extract_legacy_addon(legacy_addon)
         run_blender(args.blender, "legacy_setup.py", [legacy_addon, legacy_out], env=env)
         results["migration"] = run_blender(args.blender, "test_migration.py", [legacy_out], env=env)
+        old_addon, old_out = os.path.join(scratch, "retargetor_addon"), os.path.join(scratch, "retargetor")
+        os.makedirs(old_addon)
+        os.makedirs(old_out)
+        extract_legacy_addon(old_addon, RETARGETOR_COMMIT, None)
+        run_blender(args.blender, "retargetor_setup.py", [old_addon, old_out], env=env)
+        results["rename_migration"] = run_blender(args.blender, "test_rename_migration.py", [old_out], env=env)
 
         phase1 = os.path.join(args.spikes, "phase1", "out")
         for mode, rig_file, spike_dir in (("fk", "rig_keyposes.blend", phase1),

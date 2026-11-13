@@ -1,6 +1,6 @@
 # type : ignore
 """Snapping and baking operators. The work is done by core.retarget.snap; these operators only read the
-character edited in the panel (scene.retargetor_target and its object.retargetor state)."""
+character edited in the panel (scene.interpose_target and its object.interpose state)."""
 import bpy
 from bpy.types import Operator
 from bpy.props import BoolProperty, IntProperty
@@ -33,9 +33,9 @@ def editing_target_in_pose_mode(context):
            context.mode == 'POSE' and context.active_object == target_obj
 
 
-class RTGTR_SimpleRetarget(Operator):
+class INTERPOSE_SimpleRetarget(Operator):
     """Bake the source animation onto the target over the scene's frame range"""
-    bl_idname = "retargetor.simple_retarget"
+    bl_idname = "interpose.simple_retarget"
     bl_label = "Retarget"
     bl_options = {'REGISTER', 'UNDO'}
 
@@ -58,11 +58,11 @@ class RTGTR_SimpleRetarget(Operator):
         return {'FINISHED'}
 
 
-class RTGTR_snap_selected_bone(Operator):
+class INTERPOSE_snap_selected_bone(Operator):
     """Snap the current selected bone"""
 
-    bl_idname = "retargetor.snap_selected_bone"
-    bl_label = "Snap active bone"
+    bl_idname = "interpose.snap_selected_bone"
+    bl_label = "Snap Active Bone"
     bl_options = {'REGISTER', 'UNDO'}
 
     add_roll : BoolProperty(
@@ -83,7 +83,7 @@ class RTGTR_snap_selected_bone(Operator):
         try:
             retargeter = character_retargeter(context)
             retargeter.snap_bone(tgt_bone.name, add_roll=self.add_roll)
-            self.report({'INFO'}, "Snap done!")
+            self.report({'INFO'}, "Active bone snapped to its source")
             return {'FINISHED'}
 
         except (KeyError, ValueError) as e:
@@ -91,10 +91,10 @@ class RTGTR_snap_selected_bone(Operator):
             return {'CANCELLED'}
 
 
-class RTGTR_snap_full_pose(Operator):
+class INTERPOSE_snap_full_pose(Operator):
     """Snap the full pose at the current frame"""
-    bl_idname = "retargetor.snap_full_pose"
-    bl_label = "Snap full pose"
+    bl_idname = "interpose.snap_full_pose"
+    bl_label = "Snap Full Pose"
     bl_options = {'REGISTER', 'UNDO'}
 
     add_roll : BoolProperty(
@@ -129,9 +129,9 @@ class RTGTR_snap_full_pose(Operator):
 
 ### Registration
 classes = (
-    RTGTR_SimpleRetarget,
-    RTGTR_snap_selected_bone,
-    RTGTR_snap_full_pose,
+    INTERPOSE_SimpleRetarget,
+    INTERPOSE_snap_selected_bone,
+    INTERPOSE_snap_full_pose,
 )
 
 def register():

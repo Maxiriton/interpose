@@ -22,16 +22,16 @@ TICK = 0.05
 
 
 def bounds(rig):
-    return [(s.frame_start, s.frame_end) for s in rig.retargetor.segments]
+    return [(s.frame_start, s.frame_end) for s in rig.interpose.segments]
 
 
 def selected_keys(rig):
-    from retargetor import generation
+    from interpose import generation
     return sum(p.select_control_point for fc in generation.bone_fcurves(rig) for p in fc.keyframe_points)
 
 
 def select_all_keys(rig, value=True):
-    from retargetor import generation
+    from interpose import generation
     for fc in generation.bone_fcurves(rig):
         for p in fc.keyframe_points:
             p.select_control_point = value
@@ -50,7 +50,7 @@ class Ui:
         return bpy.context.temp_override(window=self.window, area=self.area, region=self.region)
 
     def bands(self):
-        from retargetor import segment_draw
+        from interpose import segment_draw
         with self.override():
             return segment_draw.region_bands(bpy.context, self.region)[0]
 
@@ -70,16 +70,16 @@ def steps():
     ui = Ui()
     scene = bpy.context.scene
     rig = bpy.data.objects["rig"]
-    from retargetor import segment_draw, segment_track
-    from retargetor.core.segments import PromptSegment
+    from interpose import segment_draw, segment_track
+    from interpose.core.segments import PromptSegment
 
     other = rig.copy()
     other.name = "other"
     scene.collection.objects.link(other)
-    other.retargetor.segments.clear()
-    segment_track.write_track(other.retargetor, [PromptSegment(1, 120, "waits", 2)])
-    scene.retargetor_target = rig
-    segment_track.write_track(rig.retargetor, [PromptSegment(1, 40, "walks", 0), PromptSegment(41, 80, "turns", 0),
+    other.interpose.segments.clear()
+    segment_track.write_track(other.interpose, [PromptSegment(1, 120, "waits", 2)])
+    scene.interpose_target = rig
+    segment_track.write_track(rig.interpose, [PromptSegment(1, 40, "walks", 0), PromptSegment(41, 80, "turns", 0),
                                                PromptSegment(81, 120, "sits", 0)], active=0)
     for obj in scene.objects:
         obj.select_set(obj in (rig, other))
@@ -141,20 +141,20 @@ def steps():
     keys = selected_keys(rig)
     yield from click(ui.frame_x(100), y)
     yield 0.3
-    checks.check(rig.retargetor.segments_active_index == 2, "click selects the third segment")
+    checks.check(rig.interpose.segments_active_index == 2, "click selects the third segment")
     checks.check(selected_keys(rig) == keys, f"the click on the band left the keys alone ({selected_keys(rig)}/{keys})")
 
     # Off the bands, Blender gets the click: clicking between the key poses deselects the keys
     yield from click(ui.frame_x(30), ui.region.y + ui.region.height - 60)
     yield 0.3
     checks.check(selected_keys(rig) == 0, f"a click off the bands reaches Blender ({selected_keys(rig)} keys selected)")
-    checks.check(rig.retargetor.segments_active_index == 2, "and leaves the segments alone")
+    checks.check(rig.interpose.segments_active_index == 2, "and leaves the segments alone")
 
     # Drag a boundary: segment 1 grows, segment 2 shrinks
     yield from drag(ui.frame_x(40.5), ui.frame_x(50.5), y)
     yield 0.3
     checks.check(bounds(rig) == [(1, 50), (51, 80), (81, 120)], f"boundary dragged to frame 51 ({bounds(rig)})")
-    checks.check(rig.retargetor.segments_active_index == 1, "the dragged segment is active")
+    checks.check(rig.interpose.segments_active_index == 1, "the dragged segment is active")
     # Drag a segment: both boundaries
     yield from drag(ui.frame_x(65), ui.frame_x(60), y)
     yield 0.3
@@ -172,21 +172,21 @@ def steps():
     band = ui.bands()[0]
     yield from click(ui.region.x + (band.add_x0 + band.add_x1) / 2, y)
     yield 0.3
-    checks.check(len(rig.retargetor.segments) == 4, f"\"+\" adds a segment ({bounds(rig)})")
+    checks.check(len(rig.interpose.segments) == 4, f"\"+\" adds a segment ({bounds(rig)})")
 
     # The other character's name tag makes it the panel's
     band = ui.bands()[1]
     yield from click(ui.region.x + (band.tag_x0 + band.tag_x1) / 2, ui.band_y(1))
     yield 0.3
-    checks.check(scene.retargetor_target == other, "a click on a name tag makes that character the panel's")
-    scene.retargetor_target = rig
+    checks.check(scene.interpose_target == other, "a click on a name tag makes that character the panel's")
+    scene.interpose_target = rig
     yield 0.3
 
     # Right click: the segment's menu (the segment is selected first)
     y = ui.band_y()
     yield from click(ui.frame_x(20), y, 'RIGHTMOUSE')
     yield 0.3
-    checks.check(rig.retargetor.segments_active_index == 0, "right click selects the segment under the mouse")
+    checks.check(rig.interpose.segments_active_index == 0, "right click selects the segment under the mouse")
     yield from key('ESC', ui.frame_x(20), y)
     yield 0.3
 
@@ -200,7 +200,7 @@ def steps():
     y = ui.band_y()
     yield from click(ui.frame_x(60), y)
     yield 0.3
-    checks.check(rig.retargetor.segments_active_index == 1, "click selects a segment in the Graph Editor")
+    checks.check(rig.interpose.segments_active_index == 1, "click selects a segment in the Graph Editor")
     yield from drag(ui.frame_x(45.5), ui.frame_x(40.5), y)
     yield 0.3
     checks.check(bounds(rig)[:2] == [(1, 40), (41, 75)], f"boundary dragged in the Graph Editor ({bounds(rig)})")
@@ -216,7 +216,7 @@ def steps():
     checks.check(bounds(rig)[:2] == [(1, 35), (36, 75)], f"right-click select: right drag moves a boundary ({bounds(rig)})")
     yield from click(ui.frame_x(100), y)
     yield 0.3
-    checks.check(rig.retargetor.segments_active_index == 2, "right-click select: left click selects and opens the menu")
+    checks.check(rig.interpose.segments_active_index == 2, "right-click select: left click selects and opens the menu")
     yield from key('ESC', ui.frame_x(100), y)
     keyconfig.preferences.select_mouse = 'LEFT'
     yield 0.3

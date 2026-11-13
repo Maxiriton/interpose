@@ -36,7 +36,7 @@ def new_file():
 
 def make_library(path):
     new_file()
-    from retargetor.core import profile as core_profile
+    from interpose.core import profile as core_profile
     scene = bpy.context.scene
     target = bootstrap.make_armature("CHAR_rig", bootstrap.TARGET_BONES)
     source = bootstrap.make_armature("CHAR_source", bootstrap.SOURCE_BONES)
@@ -50,10 +50,10 @@ def make_library(path):
         roles=[core_profile.RoleBinding("hips", "hips", "hips"), core_profile.RoleBinding("upper_arm.L", "arm.L", "arm.L")],
         limbs=[core_profile.LimbSnap("arm.L", "spine", "IK_FK", 1.0, [core_profile.FkPair("arm.L", "arm.L")])],
     )
-    target.data.retargetor_profile.from_core(rig_profile)
-    target.retargetor.source = source
-    target.retargetor.translation_scale = 1.5
-    item = target.retargetor.bones.add()
+    target.data.interpose_profile.from_core(rig_profile)
+    target.interpose.source = source
+    target.interpose.translation_scale = 1.5
+    item = target.interpose.bones.add()
     item.src_name, item.target_name = "Hips", "hips"
     bpy.ops.wm.save_as_mainfile(filepath=path)
 
@@ -105,16 +105,16 @@ def main(scratch):
     new_file()
     character, _instance = link_character(lib_path)
     rig = character.objects["CHAR_rig"]
-    profile = rig.data.retargetor_profile
+    profile = rig.data.interpose_profile
     checks.check(rig.library is not None and not rig.data.is_editable, "linked armature is not editable")
     checks.check([b.read_bone for b in profile.to_core().roles] == ["hips", "arm.L"], "linked profile can be read")
-    checks.check(rig.retargetor.translation_scale == 1.5 and len(rig.retargetor.bones) == 1,
+    checks.check(rig.interpose.translation_scale == 1.5 and len(rig.interpose.bones) == 1,
                  "linked character state can be read")
     edited = try_set(profile.roles[0], "read_bone", "spine")
     linked_path = os.path.join(scratch, "shot_linked.blend")
     bpy.ops.wm.save_as_mainfile(filepath=linked_path)
     bpy.ops.wm.open_mainfile(filepath=linked_path)
-    kept = bpy.data.objects["CHAR_rig"].data.retargetor_profile.roles[0].read_bone == "spine"
+    kept = bpy.data.objects["CHAR_rig"].data.interpose_profile.roles[0].read_bone == "spine"
     checks.check(not kept, "linked profile: an edit is not saved")
     finding(f"Linked rig (no override): the profile and the character state come from the library. Python can "
             f"change them in memory (edit accepted={edited}) but nothing is saved (kept after reload={kept}); "
@@ -133,8 +133,8 @@ def main(scratch):
                 f"armature data override={data_override is not None}, system override={system}, "
                 f"armature is_editable={rig.data.is_editable}")
 
-        profile = rig.data.retargetor_profile
-        state = rig.retargetor
+        profile = rig.data.interpose_profile
+        state = rig.interpose
         profile_edit = try_set(profile.roles[0], "write_bone", "spine")
         profile_insert = try_add(profile.roles)
         state_edit = try_set(state, "translation_scale", 2.0)
@@ -147,13 +147,13 @@ def main(scratch):
 
         bpy.context.view_layer.objects.active = rig
         rig.select_set(True)
-        checks.check(bpy.ops.retargetor.profile_import_json.poll() == rig.data.is_editable,
+        checks.check(bpy.ops.interpose.profile_import_json.poll() == rig.data.is_editable,
                      f"{label}: Import Profile is available only when the armature data is editable")
 
         bpy.ops.wm.save_as_mainfile(filepath=shot_path)
         bpy.ops.wm.open_mainfile(filepath=shot_path)
         rig = next(o for o in bpy.data.objects if o.name.startswith("CHAR_rig") and o.override_library)
-        profile, state = rig.data.retargetor_profile, rig.retargetor
+        profile, state = rig.data.interpose_profile, rig.interpose
         kept_profile = profile.roles[0].write_bone == "spine"
         kept_insert = len(profile.roles) == 3
         kept_state = state.translation_scale == 2.0
@@ -170,13 +170,13 @@ def main(scratch):
     # 4. The library's profile changes
     bpy.ops.wm.open_mainfile(filepath=lib_path)
     rig = bpy.data.objects["CHAR_rig"]
-    rig.data.retargetor_profile.roles[1].read_bone = "forearm.L"
-    rig.data.retargetor_profile.roles[0].write_bone = "hips_lib"
+    rig.data.interpose_profile.roles[1].read_bone = "forearm.L"
+    rig.data.interpose_profile.roles[0].write_bone = "hips_lib"
     bpy.ops.wm.save_as_mainfile(filepath=lib_path)
     for name in VARIANTS:
         bpy.ops.wm.open_mainfile(filepath=os.path.join(scratch, f"shot_{name}.blend"))
         rig = next(o for o in bpy.data.objects if o.name.startswith("CHAR_rig") and o.override_library)
-        roles = rig.data.retargetor_profile.roles
+        roles = rig.data.interpose_profile.roles
         finding(f"{name} override after the library changed: untouched role follows the library="
                 f"{roles[1].read_bone == 'forearm.L'}, overridden value kept={roles[0].write_bone}")
         checks.check(roles[1].read_bone == "forearm.L", f"{name} override: untouched profile values follow the library")

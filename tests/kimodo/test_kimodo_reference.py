@@ -21,7 +21,7 @@ from backends.kimodo.worker import KimodoHandler  # noqa: E402
 from core import quat  # noqa: E402
 from core.motion import GenerationRequest, Pose  # noqa: E402
 
-SPIKES = os.environ.get("RETARGETOR_SPIKES", os.path.join(REPO, "spikes"))
+SPIKES = os.environ.get("INTERPOSE_SPIKES", os.path.join(REPO, "spikes"))
 PHASE0 = os.path.join(SPIKES, "phase0", "out")
 # Kimodo frames of the Phase 0 round trip (Blender frames 80 and 135)
 ROUNDTRIP_FRAMES = [79, 134]

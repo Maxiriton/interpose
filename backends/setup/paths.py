@@ -17,14 +17,14 @@ import os
 from .spec import LINUX, MACOS, WINDOWS
 
 # Renamed with the extension's final name (Phase 8)
-APP_FOLDER = "Retargetor"
+APP_FOLDER = "Interpose"
 STATE_FILE = "install.json"
 LOG_FILE = "install.log"
 
 
 def default_root(system, environ=None, home=None):
-    """The default folder for the models on this system: %LOCALAPPDATA%\\Retargetor on Windows,
-    $XDG_DATA_HOME/retargetor (~/.local/share/retargetor) on Linux, ~/Library/Application Support/Retargetor on
+    """The default folder for the models on this system: %LOCALAPPDATA%\\Interpose on Windows,
+    $XDG_DATA_HOME/interpose (~/.local/share/interpose) on Linux, ~/Library/Application Support/Interpose on
     macOS. Outside Blender's own configuration, so it is kept across Blender versions and add-on updates."""
     environ = os.environ if environ is None else environ
     home = home or os.path.expanduser("~")

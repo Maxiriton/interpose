@@ -15,7 +15,7 @@ _MODEL_ITEMS = [(name, checkpoint.label, f"nvidia/{name}: {checkpoint.skeleton.u
 _ENCODER_ITEMS = [(name, encoder.label, encoder.description) for name, encoder in models.TEXT_ENCODERS.items()]
 
 
-class RTGTR_ArdySettings(PropertyGroup):
+class INTERPOSE_ArdySettings(PropertyGroup):
     model: EnumProperty(name="Model", items=_MODEL_ITEMS, default=models.DEFAULT_MODEL,
                         description="ARDY model to load (its weights are downloaded by the install): the SOMA "
                                     "skeleton at 30 fps, or ARDY's own Core skeleton at 20 fps")
@@ -51,7 +51,7 @@ class ArdyBackend(Backend):
     _configured = {}
 
     def settings_class(self):
-        return RTGTR_ArdySettings
+        return INTERPOSE_ArdySettings
 
     def draw_settings(self, layout, settings):
         layout.prop(settings, "model")

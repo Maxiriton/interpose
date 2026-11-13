@@ -89,10 +89,10 @@ def compare_matrices(obj, reference, frames, names=None):
 def main(mode, spike_dir, reference_dir):
     checks = bootstrap.Checks(f"test_chain {mode}")
     bootstrap.register_addon()
-    from retargetor.core import profile as core_profile
-    from retargetor.core.motion import GenerationRequest
-    from retargetor.core.pose_io import read_pose
-    from retargetor.core.retarget.snap import Retargeter, compute_translation_scale
+    from interpose.core import profile as core_profile
+    from interpose.core.motion import GenerationRequest
+    from interpose.core.pose_io import read_pose
+    from interpose.core.retarget.snap import Retargeter, compute_translation_scale
 
     scene = bpy.context.scene
     view_layer = bpy.context.view_layer
@@ -101,8 +101,8 @@ def main(mode, spike_dir, reference_dir):
 
     # 1. Rig profile from the Rigify preset, through the operator
     view_layer.objects.active = rig
-    checks.check(bpy.ops.retargetor.profile_load_preset(preset="rigify_human") == {'FINISHED'}, "Rigify preset loaded")
-    rig_profile = rig.data.retargetor_profile.to_core()
+    checks.check(bpy.ops.interpose.profile_load_preset(preset="rigify_human") == {'FINISHED'}, "Rigify preset loaded")
+    rig_profile = rig.data.interpose_profile.to_core()
     limbs = limb_bones(rig_profile)
     org_bones = [b.read_bone for b in rig_profile.roles]
 
@@ -113,7 +113,7 @@ def main(mode, spike_dir, reference_dir):
             scene.frame_set(frame)
             before[frame] = snapshot(rig, org_bones)
         frames_text = ", ".join(str(f) for f in KEY_FRAMES)
-        checks.check(bpy.ops.retargetor.snap_fk_to_ik(frames=frames_text) == {'FINISHED'}, "Snap FK to IK")
+        checks.check(bpy.ops.interpose.snap_fk_to_ik(frames=frames_text) == {'FINISHED'}, "Snap FK to IK")
         switches = [rig.pose.bones[limb.switch_bone][limb.switch_property] for limb in rig_profile.limbs]
         checks.check(switches == [1.0] * 4, "limbs switched to FK")
         worst_angle = worst_dist = 0.0

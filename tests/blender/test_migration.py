@@ -24,9 +24,9 @@ def main(out_dir):
 
     scene = bpy.context.scene
     source, target = bpy.data.objects["SRC"], bpy.data.objects["TGT"]
-    state = target.retargetor
+    state = target.interpose
 
-    checks.check(scene.retargetor_target == target, "the scene's target armature is set")
+    checks.check(scene.interpose_target == target, "the scene's target armature is set")
     checks.check(state.source == source, "the source armature moved to the target object")
     checks.check([(i.src_name, i.target_name) for i in state.bones] ==
                  [("Hips", "hips"), ("Spine", "spine"), ("Arm.L", "arm.L"), ("Forearm.L", "forearm.L"),
@@ -44,12 +44,12 @@ def main(out_dir):
     checks.check(not remaining, f"legacy scene properties removed ({remaining})")
 
     # A second load must not do anything (nothing left to migrate)
-    from retargetor import migration
+    from interpose import migration
     checks.check(migration.migrate_all() == [], "migration runs only once")
 
     # A rig profile saved with a preset's old name gets its current one, on load; the panels show it anyway
-    from retargetor import profile_operators
-    profile = target.data.retargetor_profile
+    from interpose import profile_operators
+    profile = target.data.interpose_profile
     profile.source = "Auto-Rig Pro (FK controls)"
     checks.check(profile_operators.source_label(profile.source) == "preset 'Auto-Rig Pro'",
                  f"an old preset name shown as the current one ({profile_operators.source_label(profile.source)})")
@@ -59,7 +59,7 @@ def main(out_dir):
     profile.source = ""
 
     bpy.context.view_layer.objects.active = target
-    checks.check(bpy.ops.retargetor.simple_retarget() == {'FINISHED'}, "bake with the new version")
+    checks.check(bpy.ops.interpose.simple_retarget() == {'FINISHED'}, "bake with the new version")
 
     worst_rot, worst_loc = 0.0, 0.0
     for frame, bones in legacy["frames"].items():
