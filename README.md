@@ -4,8 +4,6 @@
 
 Interpose is a Blender extension for animators. You keep your rig, its controls and your key poses; a motion model (NVIDIA's Kimodo or ARDY for now, others can be added) generates the in-betweens from a text prompt ("a person walks forward and waves"), and the result comes back as ordinary keys you can edit. It works with Rigify, Auto-Rig Pro and CloudRig rigs, and with skeletons such as Mixamo characters, without any setup; other rigs are set up once.
 
-It also retargets an animation from one armature to another, even when their rest poses don't match.
-
 > **Status:** 0.1.0, the first public version. Tested on Windows 11 with an NVIDIA RTX 3090. Feedback and bug reports are welcome on the [issues page](https://github.com/Maxiriton/interpose/issues).
 
 ---
@@ -19,7 +17,7 @@ It also retargets an animation from one armature to another, even when their res
 - [Prompt segments](#prompt-segments)
 - [Limits](#limits)
 - [Troubleshooting](#troubleshooting)
-- [Retargeting between two armatures](#retargeting-between-two-armatures)
+- [Files from older versions](#files-from-older-versions)
 - [Licences](#licences)
 - [For developers](#for-developers)
 
@@ -32,12 +30,11 @@ It also retargets an animation from one armature to another, even when their res
 - **Rig setup**: Rigify, Auto-Rig Pro and CloudRig rigs and skeletons (Mixamo, Unreal, SMPL, VRM, Daz, Character Creator...) set themselves up. Others are set up by picking their bones, and **Check Rig** tests what the controls really do.
 - **Models installed for you**: the add-on installs a model (its Python, its packages, its weights) from its preferences, and checks the setup with a clear fix for each problem.
 - **Several characters per scene**, each with its own prompt, segments and settings.
-- **Retargeting** between two armatures with different rest poses, bone by bone.
 
 ## Requirements
 
 - **Blender 5.2** or newer.
-- **To generate**: an **NVIDIA GPU** with enough video memory, and disk space for the model. macOS can't generate (no NVIDIA GPUs); Linux should work but isn't tested yet. The retargeting and the rig setup work everywhere.
+- **To generate**: an **NVIDIA GPU** with enough video memory, and disk space for the model. macOS can't generate (no NVIDIA GPUs); Linux should work but isn't tested yet. The rig setup works everywhere.
 
 | Model | Video memory | Disk | Also needs |
 |---|---|---|---|
@@ -87,7 +84,7 @@ The add-on never asks for, reads, stores or sends your token: Hugging Face's lib
 
 ## Setting up a rig
 
-Choose your character as the **Target** at the top of the **Retarget** panel (Interpose tab). That's all for most rigs: as soon as it is chosen, its **rig profile** is set up (the Generate panel says how).
+Select your character's armature: the active armature is the character Interpose works on. That's all for most rigs: as soon as it is selected, its **rig profile** is set up (the Generate panel says how). When it isn't, the animation editors' header says so in place of **Generate** ("rig not set up", "rig setup incomplete", "the rig check failed"), with **Set Up Rig...**, which opens the **Rig Setup** panel right there; the same panel is in the 3D Viewport's sidebar (`N`, Interpose tab).
 
 - **Recognized rigs**: **Rigify**, **Auto-Rig Pro** and **CloudRig** get their preset, with their FK controls, IK/FK switches and IK snap.
 - **Skeletons** animated directly, without controls (Mixamo, Unreal's mannequin, SMPL, VRM, Daz, Character Creator, a mocap or BVH import...), are recognized from their bone names and hierarchy. An FBX import standing Y-up, or a skeleton facing +Y, is fine.
@@ -101,7 +98,7 @@ Choose your character as the **Target** at the top of the **Retarget** panel (In
 
 ## Generating the in-betweens
 
-1. **Choose the character** as the **Target** (see above).
+1. **Select the character** and enter **Pose Mode**: the animation editors' header shows **Generate** once the rig is set up (see above), and says what's missing otherwise.
 2. **Key your poses** with the rig's controls. Any keyframe type works except **Generated**: Keyframe, Breakdown, Extreme... A frame is a key pose as soon as one of the profile's controls has a key there.
 3. In the **Generate** panel (or the animation editors' header), write a **prompt**, what the character does ("A person walks forward and waves"), and choose a **seed**.
 4. Click **Generate**. The panel and the status bar show the progress: the model's own steps, then the keys being written. **Esc** or the cancel button stops it, until the keys are being written (a few seconds; Blender stays responsive, you can look around but not edit).
@@ -152,22 +149,9 @@ A character can follow several prompts one after the other: "walks forward" for 
 - **A pose came out wrong on one frame**: key that frame yourself (it becomes a key pose), or regenerate the segment with another seed.
 - **The model doesn't start**: the Interpose menu in the animation editors shows its last errors; the console (Window > Toggle System Console on Windows) has the details. Please include them in a bug report.
 
-## Retargeting between two armatures
+## Files from older versions
 
-The **Retarget** panel copies an animation bone by bone from a *source* armature to a *target* armature, correcting the orientation differences between their rest poses and scaling the root motion to the target's size, and bakes it as keys on the target.
-
-1. **Choose the armatures**: **Target** (the one that receives the animation), then **Source** (the one that holds it). The setup is stored on the target object, so each character keeps its own.
-2. **Build the bone list**: **Set Up Bone List** lists every source bone and proposes a target bone by name (exact match first, then partial; a target bone is never used twice). Or **Import from JSON**.
-3. **Review each row**: the target bone (empty: the source bone is ignored); **Roll** (the bones point the same way but twist differently) or **Offset** (the full rotation between the rest poses); the translation button for the bones carrying the root motion (usually `Root` and `Hips`).
-4. **Translation Scale**: **Auto** computes the ratio of the two rigs' heights (check the heights it reports), or type your own.
-5. **Retarget** bakes the animation on the target over the scene's frame range.
-
-- **Record Correction**: when an offset is almost right, select the row, click it, rotate the target bone by hand, then **Finish Recording**: the difference is applied on top. **Update Correction** adds to it, **X** clears it.
-- **Snap Active Bone** / **Snap Full Pose** align the target to the source on the current frame, to tune the setup before baking (Pose Mode).
-- **Export to JSON** / **Import from JSON** save and load the bone list (names, offset modes, translation, corrections). The translation scale isn't saved: it depends on the two rigs.
-- With a Rigify target, match the **FK** controls and set the limbs to FK.
-- Retargeting scales the root motion, but can't remove foot sliding between legs of very different proportions.
-- Files saved by older versions (one setup per scene) are moved onto their target armature when opened. Files saved when the add-on was called **Retargetor** are brought up to date when opened (save them again with Interpose); a rig linked from a library gets it when its own file is opened and saved.
+Files saved when the add-on was called **Retargetor** are brought up to date when opened (save them again with Interpose); a rig linked from a library gets it when its own file is opened and saved. The manual bone list of the first versions (the Retarget panel, removed in 0.1.0) is no longer used.
 
 ## Licences
 
@@ -198,7 +182,7 @@ What this means:
 The add-on's code is plain Python; the models run in worker processes with their own Python and talk to Blender over JSON lines, so a new model is a folder in `backends/` (see `backends/base.py`). [CLAUDE.md](CLAUDE.md) describes each file and the architecture rules, [ROADMAP.md](ROADMAP.md) the phases and decisions, [DESIGN.md](DESIGN.md) the data model.
 
 - Tests: `python tests/run_tests.py` (see the file for its arguments: the spike outputs, a Kimodo environment, real rigs).
-- The core can be used from scripts, without the scene properties: `core.retarget.snap.Retargeter(source, target, pairs, translation_scale)` snaps (`snap_pose`) or bakes (`bake(scene, view_layer, frames)`) a list of `BonePair`s, and `core.profile.compose(profile, joint_map, direction)` builds those pairs from a rig profile and a skeleton's role → joint map.
+- The core can be used from scripts, without the scene properties: `core.retarget.snap.Retargeter(source, target, pairs, translation_scale)` snaps (`snap_pose`) or bakes (`bake(scene, view_layer, frames)`) a list of `BonePair`s from one armature to another, and `core.profile.compose(profile, joint_map, direction)` builds those pairs from a rig profile and a skeleton's role → joint map.
 - Package: `blender --command extension build` in the repository's folder.
 
 ## Author

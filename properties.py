@@ -2,22 +2,22 @@
 """Where the add-on stores its data (see DESIGN.md, "Where data is stored").
 
 - Armature data: the rig profile (armature.interpose_profile), shared by the objects using that armature.
-- Object: the per-character state (object.interpose): source armature, manual bone list, translation scale.
-- Scene: only which character the panel is editing (scene.interpose_target).
+- Object: the per-character state (object.interpose): prompt, seed, range, prompt segments, model armature.
+- Scene: only which character the panels and editors work on (scene.interpose_target): the active armature, followed
+  by follow_active_armature.
 
 Every property can be edited in a library override (LIBRARY_OVERRIDABLE), and items can be added to the
 collections of an override (USE_INSERTION).
 """
-from contextlib import contextmanager
-
 import bpy
+from bpy.app.handlers import persistent
 from bpy.props import (BoolProperty, CollectionProperty, EnumProperty, FloatProperty, FloatVectorProperty,
                        IntProperty, PointerProperty, StringProperty)
 from bpy.types import PropertyGroup
 
 from . import segment_track
 from .core import profile as core_profile
-from .core.retarget.pairs import BonePair, IDENTITY_QUATERNION
+from .core.retarget.pairs import IDENTITY_QUATERNION
 from .core.roles import ROLES_BY_ID
 
 OVERRIDABLE = {'LIBRARY_OVERRIDABLE'}
@@ -40,20 +40,15 @@ def is_scene_armature(scene, obj):
     return obj.type == 'ARMATURE' and scene in obj.users_scene
 
 
-# While True, the update callback of INTERPOSE_BonePairItem.target_name does nothing (list filled from code)
-_target_update_suspended = False
+def is_model_armature(obj):
+    """An armature the add-on built for a motion model (core.skeleton_io marks its data)"""
+    from .core.skeleton_io import SKELETON_PROPERTY
+    return obj.type == 'ARMATURE' and SKELETON_PROPERTY in obj.data
 
 
-@contextmanager
-def suspended_target_update():
-    """Temporarily disable the update callback of INTERPOSE_BonePairItem.target_name"""
-    global _target_update_suspended
-    previous = _target_update_suspended
-    _target_update_suspended = True
-    try:
-        yield
-    finally:
-        _target_update_suspended = previous
+def is_character(scene, obj):
+    """An armature of this scene that can be a character: not a motion model's armature"""
+    return obj is not None and is_scene_armature(scene, obj) and not is_model_armature(obj)
 
 
 # Stored as integers in the files: never change the numbers
@@ -70,38 +65,7 @@ def update_range_mode(self, context):
         self.range_start = context.scene.frame_current
 
 
-def update_target_bone(self, _context):
-    """A different target bone makes any recorded correction meaningless"""
-    if _target_update_suspended:
-        return
-    self.has_corrective_offset = False
-    self.corrective_offset = IDENTITY_QUATERNION
-
-
 ### Per-character state (Object)
-
-class INTERPOSE_BonePairItem(PropertyGroup):
-    """One row of the manual bone list: a source bone copied onto a target bone"""
-    src_name: StringProperty(name="Source Bone", override=OVERRIDABLE)
-    target_name: StringProperty(name="Target Bone", update=update_target_bone, override=OVERRIDABLE)
-    use_translation: BoolProperty(
-        name="Use Translation",
-        description="Copy the translation of the source bone onto the target bone (root motion). "
-                    "Otherwise only the rotation is transferred",
-        default=False, override=OVERRIDABLE)
-    offset_mode: EnumProperty(items=offset_items, name="Offset Mode",
-                              description="Select the offset to apply after aligning bones", override=OVERRIDABLE)
-    has_corrective_offset: BoolProperty(
-        name="Has Corrective Offset", description="A corrective offset has been recorded for this bone",
-        default=False, override=OVERRIDABLE)
-    corrective_offset: FloatVectorProperty(
-        name="Corrective Offset", description="Additional rotation applied after aligning bones",
-        size=4, default=IDENTITY_QUATERNION, override=OVERRIDABLE)
-
-    def to_pair(self):
-        correction = tuple(self.corrective_offset) if self.has_corrective_offset else None
-        return BonePair(self.src_name, self.target_name, self.offset_mode, self.use_translation, correction)
-
 
 class INTERPOSE_PromptSegment(PropertyGroup):
     """One prompt segment of a character's track (segment_track keeps the track contiguous)"""
@@ -118,21 +82,7 @@ class INTERPOSE_PromptSegment(PropertyGroup):
 
 
 class INTERPOSE_CharacterState(PropertyGroup):
-    """Retargeting state of one character (the target armature object)"""
-    source: PointerProperty(type=bpy.types.Object, name="Source Armature", poll=is_armature,
-                            description="Armature whose animation is copied onto this one", override=OVERRIDABLE)
-    bones: CollectionProperty(type=INTERPOSE_BonePairItem, name="Bone List", override=OVERRIDABLE_COLLECTION)
-    bones_active_index: IntProperty(name="Active Bone", default=0, override=OVERRIDABLE)
-    translation_scale: FloatProperty(
-        name="Translation Scale",
-        description="Scale applied to the movement of the bones flagged 'Use Translation' "
-                    "(target size / source size). Not stored in the JSON",
-        default=1.0, min=0.0001, soft_max=10.0, precision=4, override=OVERRIDABLE)
-    is_recording: BoolProperty(name="Is Recording", default=False,
-                               description="A corrective rotation is being recorded", override=OVERRIDABLE)
-    recording_initial_rotation: FloatVectorProperty(
-        name="Initial Rotation", description="Rotation of the bone when the recording started",
-        size=4, default=IDENTITY_QUATERNION, override=OVERRIDABLE)
+    """Generation state of one character (its armature object)"""
     # Generation with one prompt (no prompt segments)
     prompt: StringProperty(name="Prompt", description="Text describing the motion to generate",
                            override=OVERRIDABLE)
@@ -157,16 +107,6 @@ class INTERPOSE_CharacterState(PropertyGroup):
     def range_end(self):
         """Last frame of the custom range"""
         return self.range_start + self.range_duration - 1
-
-    def pairs(self):
-        """The bone list as BonePairs (rows without a target bone are left out)"""
-        return [item.to_pair() for item in self.bones if item.src_name and item.target_name]
-
-    def active_item(self):
-        """The active row, or None if the list is empty or the index is invalid"""
-        if 0 <= self.bones_active_index < len(self.bones):
-            return self.bones[self.bones_active_index]
-        return None
 
 
 ### Rig profile (Armature data)
@@ -313,7 +253,6 @@ class INTERPOSE_RigProfile(PropertyGroup):
 
 
 classes = (
-    INTERPOSE_BonePairItem,
     INTERPOSE_PromptSegment,
     INTERPOSE_CharacterState,
     INTERPOSE_Correction,
@@ -336,12 +275,42 @@ def update_target(scene, _context):
 
 
 def get_character(context):
-    """(target armature object, its INTERPOSE_CharacterState) for the character edited in the panel, or (None, None),
-    also when the target isn't in the scene anymore (deleted: the pointer alone keeps it alive)"""
+    """(armature object, its INTERPOSE_CharacterState) for the character the panels and editors work on, or
+    (None, None), also when it isn't in the scene anymore (deleted: the pointer alone keeps it alive)"""
     target = context.scene.interpose_target
     if target is None or not is_scene_armature(context.scene, target):
         return None, None
     return target, target.interpose
+
+
+# The active object the follower saw last (its session_uid): the character changes only when the active object does,
+# so a click on another character's band keeps that one until then
+_last_active = None
+
+
+def follow_active_armature(scene, view_layer):
+    """The active object, when it changed and is an armature that can be a character, becomes the scene's character"""
+    global _last_active
+    obj = view_layer.objects.active if view_layer is not None else None
+    uid = obj.session_uid if obj is not None else None
+    if uid == _last_active:
+        return
+    _last_active = uid
+    if is_character(scene, obj) and scene.interpose_target != obj:
+        scene.interpose_target = obj
+
+
+@persistent
+def follow_active_handler(scene, _depsgraph):
+    context = bpy.context
+    if context.scene == scene:
+        follow_active_armature(scene, getattr(context, "view_layer", None))
+
+
+@persistent
+def forget_active(_filepath):
+    global _last_active
+    _last_active = None
 
 
 def register():
@@ -351,12 +320,21 @@ def register():
     bpy.types.Armature.interpose_profile = PointerProperty(type=INTERPOSE_RigProfile, override=OVERRIDABLE)
     bpy.types.Object.interpose = PointerProperty(type=INTERPOSE_CharacterState, override=OVERRIDABLE)
     bpy.types.Scene.interpose_target = PointerProperty(
-        type=bpy.types.Object, name="Target Armature", poll=is_scene_armature, update=update_target,
-        description="Character edited in the Retarget panel. Its setup is stored on the object itself. An empty "
-                    "rig profile gets the preset matching the armature's bones, if there is one")
+        type=bpy.types.Object, name="Character", poll=is_character, update=update_target,
+        description="Character the panels and the editors work on: the active armature. Its state is stored on the "
+                    "object itself. An empty rig profile gets the preset matching the armature's bones, if there is "
+                    "one")
+    if follow_active_handler not in bpy.app.handlers.depsgraph_update_post:
+        bpy.app.handlers.depsgraph_update_post.append(follow_active_handler)
+    if forget_active not in bpy.app.handlers.load_post:
+        bpy.app.handlers.load_post.append(forget_active)
 
 
 def unregister():
+    if follow_active_handler in bpy.app.handlers.depsgraph_update_post:
+        bpy.app.handlers.depsgraph_update_post.remove(follow_active_handler)
+    if forget_active in bpy.app.handlers.load_post:
+        bpy.app.handlers.load_post.remove(forget_active)
     del bpy.types.Scene.interpose_target
     del bpy.types.Object.interpose
     del bpy.types.Armature.interpose_profile

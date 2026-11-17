@@ -7,129 +7,6 @@ from .backends import process, registry
 from .preferences import active_backend, ADDON_ID
 from .properties import get_character
 
-class INTERPOSE_PT_RetargetPanel(Panel):
-    bl_label = "Retarget"
-    bl_idname = "INTERPOSE_PT_RetargetPanel"
-    bl_space_type = 'VIEW_3D'
-    bl_region_type = 'UI'
-    bl_category = 'Interpose'
-
-    def draw(self, context):
-        layout = self.layout
-        scene = context.scene
-
-        layout.label(text="Setup", icon='SETTINGS')
-
-        box = layout.box()
-        box.prop(scene, "interpose_target", text="Target")
-        target_obj, state = get_character(context)
-        if target_obj is None:
-            if scene.interpose_target is not None:
-                layout.label(text=f"'{scene.interpose_target.name}' isn't in the scene anymore", icon='ERROR')
-            layout.label(text="Choose the armature that receives the animation")
-            return
-
-        box.prop(state, "source", text="Source")
-
-        row = box.row(align=True)
-        row.prop(state, "translation_scale", text="Translation Scale")
-        row.operator("interpose.auto_translation_scale", icon='FIXED_SIZE')
-
-        if len(state.bones) == 0 :
-            layout.label(text="The bone list is empty: set it up or import a JSON")
-            row = layout.row(align=True)
-            s = row.split(factor=0.7)
-            s.operator("interpose.setup_bone_list")
-            c = s.column()
-            c.operator("interpose.import_retarget_json")
-        else:
-            row = layout.row(align=True)
-            s = row.split(factor=0.7)
-            c = s.column()
-            c.operator("interpose.setup_bone_list", text="Rebuild Bone List")
-            c = s.column()
-            c.operator("interpose.import_retarget_json")
-            layout.label(text="Bone List")
-            layout.template_list(
-                "INTERPOSE_UL_Bones", "bones",
-                state, "bones",
-                state, "bones_active_index"
-            )
-            layout.operator('interpose.export_setup_to_json', text="Export to JSON")
-
-
-        layout.separator()
-        layout.label(text="Retarget", icon='ARMATURE_DATA')
-
-        # Retarget and snap buttons
-        layout.operator("interpose.simple_retarget", icon='ANIM_DATA')
-        layout.operator("interpose.snap_selected_bone", icon='ANIM_DATA')
-        layout.operator("interpose.snap_full_pose", icon='ANIM_DATA')
-
-class INTERPOSE_UL_Bones(UIList):
-    """UI list for matching and setting up bones"""
-    def draw_item(self, context, layout, data, item, icon, active_data, active_property, index):
-        row = layout.row(align=True)
-        state = data
-
-        if state.is_recording and state.bones_active_index != index:
-            row.enabled = False
-
-        split1 = row.split(factor=0.33, align=True)
-        col1 = split1.column(align=True)
-
-        # A check mark: both bones of the pair exist, so the rest offsets can be computed
-        target_obj = context.scene.interpose_target
-        source_obj = state.source
-        is_setup = bool(item.target_name) and source_obj is not None and target_obj is not None and \
-            source_obj.data.bones.get(item.src_name) is not None and \
-            target_obj.data.bones.get(item.target_name) is not None
-        col1.label(text=item.src_name, icon='CHECKMARK' if is_setup else 'DECORATE')
-
-        split2 = split1.split(factor=0.5, align=True)
-        col2 = split2.column(align=True)
-
-        if target_obj:
-            col2.prop_search(
-                item,
-                "target_name",
-                target_obj.pose,
-                "bones",
-                text=""
-            )
-        else:
-            col2.label(text=item.target_name)
-
-        col3 = split2.column(align=True)
-        row2 = col3.row(align=True)
-        row2.prop(item, "use_translation", text="", icon='CON_LOCLIKE', toggle=True)
-        row2.prop(item, "offset_mode", text="")
-
-        if state.is_recording and state.bones_active_index == index:
-            row2.operator(
-                "interpose.finish_record",
-                text="Finish Recording",
-                icon='REC'
-            )
-        elif item.has_corrective_offset:
-            row2.operator(
-                "interpose.record_adjustment",
-                text="Update Correction",
-                icon='ARMATURE_DATA'
-            )
-            row2.operator(
-                "interpose.clear_record",
-                text="",
-                icon='X'
-            )
-        else:
-            row2.operator(
-                "interpose.record_adjustment",
-                text="Record Correction",
-                icon='ARMATURE_DATA'
-            )
-
-
 class INTERPOSE_PT_RigProfilePanel(Panel):
     """Rig setup of the active armature: its bones for each humanoid role, and the check of what its controls do"""
     bl_label = "Rig Setup"
@@ -420,14 +297,13 @@ class INTERPOSE_PT_GeneratePanel(Panel):
 
         rig, state = get_character(context)
         if rig is None:
-            layout.label(text="Choose the character in the Retarget panel")
+            layout.label(text="Select the character's armature", icon='INFO')
             return
         layout.label(text=f"Character: {rig.name}", icon='ARMATURE_DATA')
         draw_profile_status(layout, rig)
-        active = context.active_object
-        if (active is not None and active != rig and active.type == 'ARMATURE'
-                and active != rig.interpose.model_armature):
-            layout.label(text=f"The active armature is '{active.name}', not the character", icon='ERROR')
+        blocked = rig_problem(context)
+        if blocked is not None:
+            draw_rig_problem(layout, blocked)
         if len(state.segments) > 0:
             problem = draw_segments(context, layout, rig, state, backend)
         else:
@@ -448,9 +324,53 @@ class INTERPOSE_PT_GeneratePanel(Panel):
                 # The first generation: it becomes prompt segment 1. With segments, the segment's own button
                 # generates it, and the timeline's Generate the whole track
                 row = layout.row()
-                row.enabled = not problem
+                row.enabled = not problem and blocked is None
                 row.operator("interpose.generate_inbetweens", text="Generate", icon='ANIM')
             layout.operator("interpose.clear_generated_keys", icon='TRASH')
+
+
+RIG_SETUP_PANEL = "INTERPOSE_PT_RigProfilePanel"
+
+
+def rig_problem(context):
+    """Why Generate can't start from here, as (message, the rig setup fixes it), or None: the character must be the
+    active object, in Pose Mode, with a rig profile (its own or one recognized) holding the required bones, and no
+    error at its last check (Generate runs the check)"""
+    from . import rig_check
+    from .core.roles import missing_required
+    from .profile_operators import detect_profile, last_check
+    rig, _state = get_character(context)
+    active = context.active_object
+    if rig is None or active != rig:
+        return "Select the character's armature in Pose Mode", False
+    if rig.mode != 'POSE':
+        return "Enter Pose Mode to generate", False
+    if not rig.is_editable:
+        return f"'{rig.name}' is linked: make a library override", False
+    profile = rig.data.interpose_profile
+    if len(profile.roles) == 0:
+        if detect_profile(rig.data) is None:
+            return f"{rig.name}: rig not set up", True
+        return None
+    if missing_required([b.role for b in profile.roles if b.read_bone]):
+        return f"{rig.name}: rig setup incomplete", True
+    try:
+        problems = last_check(rig.data, profile.to_core())
+    except ValueError as e:
+        return f"{rig.name}: {e}", True
+    if problems and any(p.level == rig_check.ERROR for p in problems):
+        return f"{rig.name}: the rig check failed", True
+    return None
+
+
+def draw_rig_problem(layout, problem):
+    """The rig problem in a row, with the button opening the rig setup when it fixes it"""
+    message, fixable = problem
+    row = layout.row(align=True)
+    row.label(text=message, icon='ERROR' if fixable else 'INFO')
+    if fixable:
+        props = row.operator("wm.call_panel", text="Set Up Rig...", icon='ARMATURE_DATA')
+        props.name, props.keep_open = RIG_SETUP_PANEL, True
 
 
 def _error(layout, text, width=48):
@@ -574,7 +494,7 @@ class INTERPOSE_MT_EditorMenu(Menu):
         backend = active_backend(context)
         rig, state = get_character(context)
         if rig is None:
-            layout.label(text="Choose the character in the Retarget panel", icon='INFO')
+            layout.label(text="Select the character's armature", icon='INFO')
         else:
             layout.label(text=f"Character: {rig.name}", icon='ARMATURE_DATA')
         layout.operator("interpose.generate_inbetweens", text="Generate Whole Track", icon='ANIM')
@@ -633,7 +553,11 @@ def draw_editor_header(self, context):
         row.label(text=backend.label, icon='ERROR' if error else icon)
         if start:
             row.operator("interpose.backend_start", text="", icon='PLAY')
-    layout.operator("interpose.generate_inbetweens", text="Generate", icon='ANIM')
+    blocked = rig_problem(context)
+    if blocked is not None:
+        draw_rig_problem(layout, blocked)
+    else:
+        layout.operator("interpose.generate_inbetweens", text="Generate", icon='ANIM')
 
 
 _HEADERS = ("DOPESHEET_HT_header", "GRAPH_HT_header")
@@ -649,9 +573,7 @@ class INTERPOSE_UL_Limbs(UIList):
 
 ### Registration
 classes = (
-    INTERPOSE_UL_Bones,
     INTERPOSE_UL_Limbs,
-    INTERPOSE_PT_RetargetPanel,
     INTERPOSE_PT_RigProfilePanel,
     INTERPOSE_PT_RigLimbsPanel,
     INTERPOSE_PT_RigAdvancedPanel,

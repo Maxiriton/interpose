@@ -51,10 +51,10 @@ def make_library(path):
         limbs=[core_profile.LimbSnap("arm.L", "spine", "IK_FK", 1.0, [core_profile.FkPair("arm.L", "arm.L")])],
     )
     target.data.interpose_profile.from_core(rig_profile)
-    target.interpose.source = source
-    target.interpose.translation_scale = 1.5
-    item = target.interpose.bones.add()
-    item.src_name, item.target_name = "Hips", "hips"
+    from interpose import segment_track
+    from interpose.core.segments import PromptSegment
+    target.interpose.seed = 15
+    segment_track.write_track(target.interpose, [PromptSegment(1, 40, "walks", 0)])
     bpy.ops.wm.save_as_mainfile(filepath=path)
 
 
@@ -108,7 +108,7 @@ def main(scratch):
     profile = rig.data.interpose_profile
     checks.check(rig.library is not None and not rig.data.is_editable, "linked armature is not editable")
     checks.check([b.read_bone for b in profile.to_core().roles] == ["hips", "arm.L"], "linked profile can be read")
-    checks.check(rig.interpose.translation_scale == 1.5 and len(rig.interpose.bones) == 1,
+    checks.check(rig.interpose.seed == 15 and len(rig.interpose.segments) == 1,
                  "linked character state can be read")
     edited = try_set(profile.roles[0], "read_bone", "spine")
     linked_path = os.path.join(scratch, "shot_linked.blend")
@@ -137,13 +137,12 @@ def main(scratch):
         state = rig.interpose
         profile_edit = try_set(profile.roles[0], "write_bone", "spine")
         profile_insert = try_add(profile.roles)
-        state_edit = try_set(state, "translation_scale", 2.0)
-        state_insert = try_add(state.bones)
+        state_edit = try_set(state, "seed", 20)
+        state_insert = try_add(state.segments)
         if state_insert:
-            state.bones[-1].src_name = "Spine"
-            state.bones[-1].target_name = "spine"
+            state.segments[-1].prompt = "turns"
         finding(f"{label}: edit a profile value={profile_edit}, add a profile role={profile_insert}, "
-                f"edit the character state={state_edit}, add a bone list row={state_insert}")
+                f"edit the character state={state_edit}, add a prompt segment={state_insert}")
 
         bpy.context.view_layer.objects.active = rig
         rig.select_set(True)
@@ -156,11 +155,11 @@ def main(scratch):
         profile, state = rig.data.interpose_profile, rig.interpose
         kept_profile = profile.roles[0].write_bone == "spine"
         kept_insert = len(profile.roles) == 3
-        kept_state = state.translation_scale == 2.0
-        kept_rows = [i.src_name for i in state.bones]
+        kept_state = state.seed == 20
+        kept_rows = [i.prompt for i in state.segments]
         finding(f"{label}, after save and reload: profile edit kept={kept_profile}, added role kept={kept_insert}, "
-                f"state edit kept={kept_state}, bone list={kept_rows}")
-        checks.check(kept_state and kept_rows == ["Hips", "Spine"], f"{label}: character state edits survive a reload")
+                f"state edit kept={kept_state}, prompt segments={kept_rows}")
+        checks.check(kept_state and kept_rows == ["walks", "turns"], f"{label}: character state edits survive a reload")
         if variant == "data":
             checks.check(kept_profile and kept_insert, f"{label}: profile edits survive a reload")
         else:

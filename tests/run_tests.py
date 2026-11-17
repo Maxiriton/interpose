@@ -20,9 +20,9 @@ Kimodo too when --kimodo-python is given. Rigs whose file is missing are skipped
 variable): each model installed there is checked and generates (GPU): Kimodo (a generation), ARDY (base, prompt
 segments, one segment regenerated, the Core checkpoint: a few minutes, 17 GB of video memory). Nothing is installed
 by the tests.
-The migration test builds a legacy file with the add-on as it was before Phase 2 (commit LEGACY_COMMIT), and the
-rename migration a file made when the add-on was called Retargetor (commit RETARGETOR_COMMIT). The package is built
-(extension validate and build) and installed in a Blender with a scratch user folder (test_package.py).
+The rename migration test opens a file made when the add-on was called Retargetor (commit RETARGETOR_COMMIT). The
+package is built (extension validate and build) and installed in a Blender with a scratch user folder
+(test_package.py).
 """
 import argparse
 import glob
@@ -35,8 +35,6 @@ REPO = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 BLENDER_TESTS = os.path.join(REPO, "tests", "blender")
 DEFAULT_BLENDER = r"C:\Program Files\Blender Foundation\Blender 5.2\blender.exe"
 # Last commit before the Phase 2 refactor: its add-on stores the setup in scene.retarget_*
-LEGACY_COMMIT = "62864b7"
-LEGACY_FILES = ["__init__.py", "setup_operators.py", "retarget_operators.py", "ui.py"]
 # Last commit before the add-on was renamed from Retargetor to Interpose
 RETARGETOR_COMMIT = "d55f116"
 
@@ -161,9 +159,9 @@ def run_real_rigs(args, env):
     return results
 
 
-def extract_legacy_addon(folder, commit=LEGACY_COMMIT, files=LEGACY_FILES):
-    """The add-on as it was at `commit` (its `files`; None: all but the tests and spikes), extracted in `folder`"""
-    archive = subprocess.run(["git", "-C", REPO, "archive", commit, "--"] + (files or []),
+def extract_legacy_addon(folder, commit):
+    """The add-on as it was at `commit` (all but the tests and spikes), extracted in `folder`"""
+    archive = subprocess.run(["git", "-C", REPO, "archive", commit],
                              capture_output=True, check=True).stdout
     import io
     import tarfile
@@ -230,16 +228,10 @@ def main():
             print("generate: the test rig could not be made (spikes/phase1/make_rig.py)")
             results["generate"] = False
 
-        legacy_addon, legacy_out = os.path.join(scratch, "legacy_addon"), os.path.join(scratch, "legacy")
-        os.makedirs(legacy_addon)
-        os.makedirs(legacy_out)
-        extract_legacy_addon(legacy_addon)
-        run_blender(args.blender, "legacy_setup.py", [legacy_addon, legacy_out], env=env)
-        results["migration"] = run_blender(args.blender, "test_migration.py", [legacy_out], env=env)
         old_addon, old_out = os.path.join(scratch, "retargetor_addon"), os.path.join(scratch, "retargetor")
         os.makedirs(old_addon)
         os.makedirs(old_out)
-        extract_legacy_addon(old_addon, RETARGETOR_COMMIT, None)
+        extract_legacy_addon(old_addon, RETARGETOR_COMMIT)
         run_blender(args.blender, "retargetor_setup.py", [old_addon, old_out], env=env)
         results["rename_migration"] = run_blender(args.blender, "test_rename_migration.py", [old_out], env=env)
 
