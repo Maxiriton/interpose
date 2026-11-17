@@ -221,6 +221,17 @@ def steps():
     keyconfig.preferences.select_mouse = 'LEFT'
     yield 0.3
 
+    # No segments: the band holds only the name and the "+" adding the first segment
+    rig.interpose.segments.clear()
+    yield 0.3
+    band = ui.bands()[0]
+    checks.check(band.character == "rig" and not band.bars and band.add_x0 < band.add_x1,
+                 "the panel's character without segments keeps its band and its \"+\"")
+    y = ui.band_y()
+    yield from click(ui.region.x + (band.add_x0 + band.add_x1) / 2, y)
+    yield 0.3
+    checks.check(len(rig.interpose.segments) == 1, f"\"+\" adds the first segment ({bounds(rig)})")
+
 
 _steps = None
 

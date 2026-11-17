@@ -105,6 +105,9 @@ def main():
     bpy.ops.interpose.segment_remove()
     bpy.ops.interpose.segment_remove()
     checks.check(len(state.segments) == 0, "every segment removed")
+    from interpose import segment_draw
+    checks.check((rig, True) in segment_draw.shown_characters(bpy.context),
+                 "the panel's character without segments still has a band (its \"+\" button)")
     checks.check(generation.generation_range(rig, _profile(rig))[:2] == (10, 109), "back to the custom range")
     check_layout(checks)
     checks.finish()
@@ -126,6 +129,13 @@ def check_layout(checks):
     checks.check(sd.hit_test(bands, 900.0, y, 2.0) is None, "after the track")
     checks.check(sd.hit_test(bands, 900.0, 150.0, 2.0) == ("other", 0, 'BODY'), "second band")
     checks.check(sd.hit_test(bands, 200.0, 20.0, 2.0) is None, "below the bands")
+    checks.check(sd.hit_test(bands, 830.0, y, 2.0) == ("rig", None, 'ADD'), "the \"+\" button after the track")
+    checks.check(sd.hit_test(bands, 830.0, 150.0, 2.0) == ("other", 0, 'BODY'), "no \"+\" on another character")
+    empty = sd.band_layout([("rig", True, [])], lambda frame: 10.0 * frame, 2.0, tag_x0=0.0,
+                           tag_width=lambda name: 30.0)
+    checks.check((empty[0].add_x0, empty[0].add_x1) == (38.0, 78.0), "no segments: the \"+\" after the name tag")
+    checks.check(sd.hit_test(empty, 50.0, y, 2.0) == ("rig", None, 'ADD'), "no segments: the \"+\" is clickable")
+    checks.check(sd.hit_test(empty, 200.0, y, 2.0) is None, "no segments: the rest of the band passes through")
 
 
 def _profile(rig):

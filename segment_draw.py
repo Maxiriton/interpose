@@ -1,6 +1,7 @@
 # type: ignore
 """The characters' prompt segments drawn as bands at the bottom of the Dope Sheet (Timeline included) and the Graph
-Editor, one band per character: the panel's character, then the other selected characters with segments.
+Editor, one band per character: the panel's character, then the other selected characters with segments. The panel's
+character without segments gets a band too, holding only its name and the "+" button adding the first one.
 
 The layout (where each band and segment is, in region pixels) is computed by plain functions, used both to draw and
 to find what is under the mouse (segment_operators). Drawing only reads it.
@@ -19,7 +20,7 @@ BAND_HEIGHT = 34.0
 BAND_GAP = 4.0
 STRIPE = 3.0  # colour stripe on top of a segment
 EDGE = 5.0  # a boundary can be grabbed this far on each side
-ADD_GAP = 4.0  # the "+" button after the panel's character's track
+ADD_GAP = 4.0  # the "+" button after the panel's character's track (after its name tag when it has none)
 ADD_WIDTH = 20.0
 TAG_PADDING = 6.0
 FONT = 11.0
@@ -64,8 +65,8 @@ def band_layout(characters, frame_to_x, ui_scale=1.0, tag_x0=0.0, tag_width=None
         band = Band(name, target, y0, y0 + BAND_HEIGHT * ui_scale, tag_x0, tag_x0 + width)
         for index, (start, end) in enumerate(frames):
             band.bars.append(Bar(index, frame_to_x(start - 0.5), frame_to_x(end + 0.5)))
-        if target and band.bars:
-            band.add_x0 = band.bars[-1].x1 + ADD_GAP * ui_scale
+        if target:
+            band.add_x0 = (band.bars[-1].x1 if band.bars else band.tag_x1) + ADD_GAP * ui_scale
             band.add_x1 = band.add_x0 + ADD_WIDTH * ui_scale
         bands.append(band)
     return bands
@@ -78,12 +79,14 @@ def hit_test(bands, x, y, ui_scale=1.0):
     the "+" button: (character, None, 'ADD')."""
     edge = EDGE * ui_scale
     for band in bands:
-        if not band.y0 <= y <= band.y1 or not band.bars:
+        if not band.y0 <= y <= band.y1:
             continue
         if band.tag_x0 <= x <= band.tag_x1:
             return band.character, None, 'TAG'
         if band.add_x0 < band.add_x1 and band.add_x0 <= x <= band.add_x1:
             return band.character, None, 'ADD'
+        if not band.bars:
+            continue
         last = band.bars[-1]
         for bar in band.bars:
             if abs(x - bar.x0) <= edge:
@@ -99,14 +102,14 @@ def hit_test(bands, x, y, ui_scale=1.0):
 ### What is shown
 
 def shown_characters(context):
-    """[(object, is the panel's character)]: the panel's character if it has segments, then the other selected
-    armatures of the scene with segments, by name"""
+    """[(object, is the panel's character)]: the panel's character (with or without segments), then the other
+    selected armatures of the scene with segments, by name"""
     scene = context.scene
     if not getattr(scene, "interpose_show_segments", True):
         return []
     target = scene.interpose_target
     result = []
-    if target is not None and is_scene_armature(scene, target) and len(target.interpose.segments) > 0:
+    if target is not None and is_scene_armature(scene, target):
         result.append((target, True))
     others = [obj for obj in context.selected_objects
               if obj.type == 'ARMATURE' and obj != target and len(obj.interpose.segments) > 0]
@@ -365,7 +368,7 @@ def draw_bands():
             _text(text_x, band.y0 + 5 * ui, info, font * 0.85, info_color, clip)
         # Key poses: small diamonds on the band's bottom edge
         size, lift = 4 * ui, 2 * ui
-        first, last = state.segments[0].frame_start, state.segments[-1].frame_end
+        first, last = (state.segments[0].frame_start, state.segments[-1].frame_end) if count else (1, 0)
         for frame in key_frames(rig):
             if first <= frame <= last:
                 x = view.view_to_region(frame, 0.0, clip=False)[0]
