@@ -494,21 +494,6 @@ class INTERPOSE_OT_ModelSignIn(Operator):
         return {'FINISHED'}
 
 
-class INTERPOSE_OT_ModelUse(Operator):
-    """Make this model the one generating the motion"""
-    bl_idname = "interpose.model_use"
-    bl_label = "Use This Model"
-
-    backend_id: StringProperty(options={'SKIP_SAVE', 'HIDDEN'})
-
-    def execute(self, context):
-        prefs = get_preferences(context)
-        if prefs is None or _backend(self.backend_id) is None:
-            return {'CANCELLED'}
-        prefs.backend = self.backend_id
-        return {'FINISHED'}
-
-
 class INTERPOSE_OT_ModelOpenFolder(Operator):
     """Open the model's folder, or its install log"""
     bl_idname = "interpose.model_open_folder"
@@ -625,15 +610,14 @@ def draw_worker(col, backend):
         col.label(text=line, icon='ERROR')
 
 
-def draw_backend(layout, context, prefs, backend, active):
+def draw_backend(layout, context, prefs, backend):
+    """The chosen backend's box: what it supports, its settings, its environment and setup, its worker"""
     box = layout.box()
     header = box.row(align=True)
-    header.label(text=backend.label, icon='RADIOBUT_ON' if active else 'RADIOBUT_OFF')
+    header.label(text=backend.label)
     problem = setup_problem(context, backend)
     if backend.installable:
         header.label(text=problem or "Ready", icon='ERROR' if problem and problem != "Installing" else 'NONE')
-    if not active:
-        header.operator("interpose.model_use", text="Use").backend_id = backend.id
     col = box.column(align=True)
     for line in wrap(backend.description, 100):
         col.label(text=line)
@@ -680,8 +664,7 @@ def draw_backend(layout, context, prefs, backend, active):
             _draw_checks(box.column(align=True), backend, run)
     elif settings is not None:
         backend.draw_settings(box.column(), settings)
-    if active:
-        draw_worker(box.column(align=True), backend)
+    draw_worker(box.column(align=True), backend)
 
 
 def draw_models(layout, context, prefs):
@@ -696,10 +679,7 @@ def draw_models(layout, context, prefs):
     if not bpy.app.online_access:
         col.label(text="Online access is off (Preferences > System > Network): models can't be installed.",
                   icon='ERROR')
-    current = active_backend(context)
-    for backend in registry.visible(prefs.developer):
-        draw_backend(layout, context, prefs, backend.configured(backend_settings(context, backend)),
-                     backend.id == current.id)
+    draw_backend(layout, context, prefs, active_backend(context))
 
 
 classes = (
@@ -708,7 +688,6 @@ classes = (
     INTERPOSE_OT_ModelCheck,
     INTERPOSE_OT_ModelRemove,
     INTERPOSE_OT_ModelSignIn,
-    INTERPOSE_OT_ModelUse,
     INTERPOSE_OT_ModelOpenFolder,
 )
 

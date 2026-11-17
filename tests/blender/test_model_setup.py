@@ -30,6 +30,29 @@ def draw(function, *args):
     return errors
 
 
+class LabelLayout(CheckingLayout):
+    """A CheckingLayout keeping the labels' text"""
+
+    def __init__(self, errors, labels):
+        super().__init__(errors)
+        self.labels = labels
+
+    def _sub(self, *_args, **_kwargs):
+        return LabelLayout(self.errors, self.labels)
+
+    row = column = box = split = _sub
+
+    def label(self, **kwargs):
+        super().label(**kwargs)
+        self.labels.append(kwargs.get("text", ""))
+
+
+def drawn_labels(function, *args):
+    labels = []
+    function(LabelLayout([], labels), *args)
+    return labels
+
+
 def main(scratch, kimodo_python=None):
     checks = bootstrap.Checks("test_model_setup")
     bootstrap.register_addon()
@@ -60,6 +83,10 @@ def main(scratch, kimodo_python=None):
     checks.check(draw(model_setup.draw_models, context, prefs) == [], "the Models section draws")
     prefs.developer = True
     checks.check(draw(model_setup.draw_models, context, prefs) == [], "the Models section draws, developer on")
+    labels = drawn_labels(model_setup.draw_models, context, prefs)
+    others = [b.label for b in registry.visible(True) if b.id != "kimodo" and b.label in labels]
+    checks.check(kimodo.label in labels and not others,
+                 f"only the chosen backend is drawn ({kimodo.label}; others drawn: {others})")
     header = type("Header", (), {"layout": None})()
     errors = []
     header.layout = CheckingLayout(errors)

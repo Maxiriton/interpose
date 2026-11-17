@@ -58,12 +58,11 @@ To update, install the new zip the same way. Your models stay installed.
 
 ## Installing a model
 
-The models aren't part of the extension: the add-on installs the one you choose, on your request, from its official sources. Open **Edit > Preferences > Add-ons > Interpose**. Each model is listed with what it supports (text prompt, key poses, prompt segments, longest motion...).
+The models aren't part of the extension: the add-on installs the one you choose, on your request, from its official sources. Open **Edit > Preferences > Add-ons > Interpose** and choose the model in **Backend**: its settings and its setup are shown below, with what it supports (text prompt, key poses, prompt segments, longest motion...). One model is loaded on the GPU at a time.
 
 1. Click **Install** on a model. A dialog shows what it downloads, from where, how much, and the licences: read them, they apply to you (see [Licences](#licences)). Confirm.
 2. The install runs in the background with its progress, a few minutes for several GB: its own Python and environment (with [uv](https://github.com/astral-sh/uv), downloaded once), its packages (the right PyTorch build for your GPU), its weights. **Cancel** stops it; **Resume Install** goes on where it stopped, after a failure too.
 3. **Check Setup** says what is ready and what isn't, each problem with its fix: the environment, the packages, the GPU (PyTorch can use it, enough video memory), the weights.
-4. Choose the model to use with **Use** (or **Backend**). One model is loaded on the GPU at a time.
 
 Where things go:
 
