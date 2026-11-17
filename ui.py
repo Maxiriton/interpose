@@ -7,12 +7,12 @@ from .backends import process, registry
 from .preferences import active_backend, ADDON_ID
 from .properties import get_character
 
-class RETARGETOR_PT_RetargetPanel(Panel):
+class INTERPOSE_PT_RetargetPanel(Panel):
     bl_label = "Retarget"
-    bl_idname = "RETARGETOR_PT_RetargetPanel"
+    bl_idname = "INTERPOSE_PT_RetargetPanel"
     bl_space_type = 'VIEW_3D'
     bl_region_type = 'UI'
-    bl_category = 'Retarget Tool'
+    bl_category = 'Interpose'
 
     def draw(self, context):
         layout = self.layout
@@ -21,11 +21,11 @@ class RETARGETOR_PT_RetargetPanel(Panel):
         layout.label(text="Setup", icon='SETTINGS')
 
         box = layout.box()
-        box.prop(scene, "retargetor_target", text="Target")
+        box.prop(scene, "interpose_target", text="Target")
         target_obj, state = get_character(context)
         if target_obj is None:
-            if scene.retargetor_target is not None:
-                layout.label(text=f"'{scene.retargetor_target.name}' isn't in the scene anymore", icon='ERROR')
+            if scene.interpose_target is not None:
+                layout.label(text=f"'{scene.interpose_target.name}' isn't in the scene anymore", icon='ERROR')
             layout.label(text="Choose the armature that receives the animation")
             return
 
@@ -33,40 +33,40 @@ class RETARGETOR_PT_RetargetPanel(Panel):
 
         row = box.row(align=True)
         row.prop(state, "translation_scale", text="Translation Scale")
-        row.operator("retargetor.auto_translation_scale", icon='FIXED_SIZE')
+        row.operator("interpose.auto_translation_scale", icon='FIXED_SIZE')
 
         if len(state.bones) == 0 :
-            layout.label(text="Bone list is empty: build it or import a JSON")
+            layout.label(text="The bone list is empty: set it up or import a JSON")
             row = layout.row(align=True)
             s = row.split(factor=0.7)
-            s.operator("retargetor.setup_bone_list")
+            s.operator("interpose.setup_bone_list")
             c = s.column()
-            c.operator("retargetor.import_retarget_json")
+            c.operator("interpose.import_retarget_json")
         else:
             row = layout.row(align=True)
             s = row.split(factor=0.7)
             c = s.column()
-            c.operator("retargetor.setup_bone_list", text="Rebuild bone list")
+            c.operator("interpose.setup_bone_list", text="Rebuild Bone List")
             c = s.column()
-            c.operator("retargetor.import_retarget_json")
-            layout.label(text="Bone list")
+            c.operator("interpose.import_retarget_json")
+            layout.label(text="Bone List")
             layout.template_list(
-                "RTGTR_UL_Bones", "bones",
+                "INTERPOSE_UL_Bones", "bones",
                 state, "bones",
                 state, "bones_active_index"
             )
-            layout.operator('retargetor.export_setup_to_json', text="Export to JSON")
+            layout.operator('interpose.export_setup_to_json', text="Export to JSON")
 
 
         layout.separator()
         layout.label(text="Retarget", icon='ARMATURE_DATA')
 
         # Retarget and snap buttons
-        layout.operator("retargetor.simple_retarget", icon='ANIM_DATA')
-        layout.operator("retargetor.snap_selected_bone", icon='ANIM_DATA')
-        layout.operator("retargetor.snap_full_pose", icon='ANIM_DATA')
+        layout.operator("interpose.simple_retarget", icon='ANIM_DATA')
+        layout.operator("interpose.snap_selected_bone", icon='ANIM_DATA')
+        layout.operator("interpose.snap_full_pose", icon='ANIM_DATA')
 
-class RTGTR_UL_Bones(UIList):
+class INTERPOSE_UL_Bones(UIList):
     """UI list for matching and setting up bones"""
     def draw_item(self, context, layout, data, item, icon, active_data, active_property, index):
         row = layout.row(align=True)
@@ -79,7 +79,7 @@ class RTGTR_UL_Bones(UIList):
         col1 = split1.column(align=True)
 
         # A check mark: both bones of the pair exist, so the rest offsets can be computed
-        target_obj = context.scene.retargetor_target
+        target_obj = context.scene.interpose_target
         source_obj = state.source
         is_setup = bool(item.target_name) and source_obj is not None and target_obj is not None and \
             source_obj.data.bones.get(item.src_name) is not None and \
@@ -107,36 +107,36 @@ class RTGTR_UL_Bones(UIList):
 
         if state.is_recording and state.bones_active_index == index:
             row2.operator(
-                "retargetor.finish_record",
+                "interpose.finish_record",
                 text="Finish Recording",
                 icon='REC'
             )
         elif item.has_corrective_offset:
             row2.operator(
-                "retargetor.record_adjustment",
-                text="Update Record",
+                "interpose.record_adjustment",
+                text="Update Correction",
                 icon='ARMATURE_DATA'
             )
             row2.operator(
-                "retargetor.clear_record",
+                "interpose.clear_record",
                 text="",
                 icon='X'
             )
         else:
             row2.operator(
-                "retargetor.record_adjustment",
+                "interpose.record_adjustment",
                 text="Record Correction",
                 icon='ARMATURE_DATA'
             )
 
 
-class RETARGETOR_PT_RigProfilePanel(Panel):
+class INTERPOSE_PT_RigProfilePanel(Panel):
     """Rig setup of the active armature: its bones for each humanoid role, and the check of what its controls do"""
     bl_label = "Rig Setup"
-    bl_idname = "RETARGETOR_PT_RigProfilePanel"
+    bl_idname = "INTERPOSE_PT_RigProfilePanel"
     bl_space_type = 'VIEW_3D'
     bl_region_type = 'UI'
-    bl_category = 'Retarget Tool'
+    bl_category = 'Interpose'
 
     def draw(self, context):
         from . import rig_check
@@ -149,7 +149,7 @@ class RETARGETOR_PT_RigProfilePanel(Panel):
             return
 
         armature = obj.data
-        profile = armature.retargetor_profile
+        profile = armature.interpose_profile
         layout.label(text=armature.name, icon='ARMATURE_DATA')
         if not armature.is_editable:
             layout.label(text="Linked armature: set it up in its library file", icon='LIBRARY_DATA_DIRECT')
@@ -171,9 +171,9 @@ class RETARGETOR_PT_RigProfilePanel(Panel):
 
         row = layout.row(align=True)
         row.scale_y = 1.3
-        row.operator("retargetor.profile_detect", icon='VIEWZOOM')
-        row.operator("retargetor.check_rig", icon='CHECKMARK')
-        row.menu("RTGTR_MT_ProfileFiles", text="", icon='DOWNARROW_HLT')
+        row.operator("interpose.profile_detect", icon='VIEWZOOM')
+        row.operator("interpose.check_rig", icon='CHECKMARK')
+        row.menu("INTERPOSE_MT_ProfileFiles", text="", icon='DOWNARROW_HLT')
 
         problems = None
         try:
@@ -247,44 +247,44 @@ def _draw_role(layout, obj, profile, role_id, binding, missing, by_subject):
             row.prop_search(binding, "write_bone", obj.pose, "bones", text="")
     sub = row.row(align=True)
     if profile.use_controls:
-        op = sub.operator("retargetor.profile_assign", text="", icon='EYEDROPPER')
+        op = sub.operator("interpose.profile_assign", text="", icon='EYEDROPPER')
         op.role, op.which = role_id, 'READ'
-        op = sub.operator("retargetor.profile_assign", text="", icon='BONE_DATA')
+        op = sub.operator("interpose.profile_assign", text="", icon='BONE_DATA')
         op.role, op.which = role_id, 'WRITE'
     else:
-        op = sub.operator("retargetor.profile_assign", text="", icon='EYEDROPPER')
+        op = sub.operator("interpose.profile_assign", text="", icon='EYEDROPPER')
         op.role, op.which = role_id, 'BOTH'
     if binding is not None:
-        sub.operator("retargetor.profile_select_role", text="", icon='RESTRICT_SELECT_OFF').role = role_id
-        sub.operator("retargetor.profile_clear_role", text="", icon='X').role = role_id
+        sub.operator("interpose.profile_select_role", text="", icon='RESTRICT_SELECT_OFF').role = role_id
+        sub.operator("interpose.profile_clear_role", text="", icon='X').role = role_id
 
 
-class RTGTR_MT_ProfileFiles(Menu):
+class INTERPOSE_MT_ProfileFiles(Menu):
     bl_label = "Rig Profile"
 
     def draw(self, context):
         layout = self.layout
-        layout.operator("retargetor.profile_load_preset", icon='PRESET')
+        layout.operator("interpose.profile_load_preset", icon='PRESET')
         layout.separator()
-        layout.operator("retargetor.profile_import_json", icon='IMPORT')
-        layout.operator("retargetor.profile_export_json", icon='EXPORT')
+        layout.operator("interpose.profile_import_json", icon='IMPORT')
+        layout.operator("interpose.profile_export_json", icon='EXPORT')
         layout.separator()
-        layout.operator("retargetor.profile_add_roles", icon='ADD')
+        layout.operator("interpose.profile_add_roles", icon='ADD')
 
 
 def _profile_panel_poll(context):
     obj = context.active_object
-    return obj is not None and obj.type == 'ARMATURE' and len(obj.data.retargetor_profile.roles) > 0
+    return obj is not None and obj.type == 'ARMATURE' and len(obj.data.interpose_profile.roles) > 0
 
 
-class RETARGETOR_PT_RigLimbsPanel(Panel):
+class INTERPOSE_PT_RigLimbsPanel(Panel):
     """The limbs switching between IK and FK: how the add-on snaps them before and after a generation"""
     bl_label = "IK/FK Limbs"
-    bl_idname = "RETARGETOR_PT_RigLimbsPanel"
-    bl_parent_id = "RETARGETOR_PT_RigProfilePanel"
+    bl_idname = "INTERPOSE_PT_RigLimbsPanel"
+    bl_parent_id = "INTERPOSE_PT_RigProfilePanel"
     bl_space_type = 'VIEW_3D'
     bl_region_type = 'UI'
-    bl_category = 'Retarget Tool'
+    bl_category = 'Interpose'
     bl_options = {'DEFAULT_CLOSED'}
 
     @classmethod
@@ -294,11 +294,11 @@ class RETARGETOR_PT_RigLimbsPanel(Panel):
     def draw(self, context):
         layout = self.layout
         obj = context.active_object
-        profile = obj.data.retargetor_profile
+        profile = obj.data.interpose_profile
         if len(profile.limbs) == 0:
             layout.label(text="No IK/FK limb: the rig is posed and written in FK", icon='INFO')
             return
-        layout.template_list("RTGTR_UL_Limbs", "limbs", profile, "limbs", profile, "limbs_active_index", rows=2)
+        layout.template_list("INTERPOSE_UL_Limbs", "limbs", profile, "limbs", profile, "limbs_active_index", rows=2)
         if 0 <= profile.limbs_active_index < len(profile.limbs):
             limb = profile.limbs[profile.limbs_active_index]
             box = layout.box()
@@ -326,17 +326,17 @@ class RETARGETOR_PT_RigLimbsPanel(Panel):
                     sub.prop_search(snap, "followed_bone", obj.pose, "bones", text="")
             else:
                 box.label(text="No IK snap: the limb plays in FK after generating", icon='INFO')
-        layout.operator("retargetor.snap_fk_to_ik", icon='SNAP_ON')
+        layout.operator("interpose.snap_fk_to_ik", icon='SNAP_ON')
 
 
-class RETARGETOR_PT_RigAdvancedPanel(Panel):
+class INTERPOSE_PT_RigAdvancedPanel(Panel):
     """Per role: how the rest pose difference is compensated, and which bones carry the root motion"""
     bl_label = "Advanced"
-    bl_idname = "RETARGETOR_PT_RigAdvancedPanel"
-    bl_parent_id = "RETARGETOR_PT_RigProfilePanel"
+    bl_idname = "INTERPOSE_PT_RigAdvancedPanel"
+    bl_parent_id = "INTERPOSE_PT_RigProfilePanel"
     bl_space_type = 'VIEW_3D'
     bl_region_type = 'UI'
-    bl_category = 'Retarget Tool'
+    bl_category = 'Interpose'
     bl_options = {'DEFAULT_CLOSED'}
 
     @classmethod
@@ -346,7 +346,7 @@ class RETARGETOR_PT_RigAdvancedPanel(Panel):
     def draw(self, context):
         from .core.roles import get_role
         layout = self.layout
-        for item in context.active_object.data.retargetor_profile.roles:
+        for item in context.active_object.data.interpose_profile.roles:
             row = layout.split(factor=0.4, align=True)
             row.label(text=get_role(item.role).label if item.role else "?")
             sub = row.row(align=True)
@@ -380,16 +380,16 @@ def draw_progress(layout, task, width=None):
     if width is not None:
         row.ui_units_x = width
     row.progress(factor=task.fraction, type='BAR', text=f"{task.message} {task.fraction * 100:.0f}%")
-    row.operator("retargetor.cancel_generation", text="", icon='CANCEL')
+    row.operator("interpose.cancel_generation", text="", icon='CANCEL')
 
 
-class RETARGETOR_PT_GeneratePanel(Panel):
+class INTERPOSE_PT_GeneratePanel(Panel):
     """Generate the in-betweens of the character with the active backend"""
     bl_label = "Generate"
-    bl_idname = "RETARGETOR_PT_GeneratePanel"
+    bl_idname = "INTERPOSE_PT_GeneratePanel"
     bl_space_type = 'VIEW_3D'
     bl_region_type = 'UI'
-    bl_category = 'Retarget Tool'
+    bl_category = 'Interpose'
 
     def draw(self, context):
         layout = self.layout
@@ -410,9 +410,9 @@ class RETARGETOR_PT_GeneratePanel(Panel):
         else:
             row.label(text=label, icon=icon)
         if start:
-            row.operator("retargetor.backend_start", text=start, icon='PLAY')
+            row.operator("interpose.backend_start", text=start, icon='PLAY')
         if stop:
-            row.operator("retargetor.backend_stop", text="Stop", icon='PAUSE')
+            row.operator("interpose.backend_stop", text="Stop", icon='PAUSE')
         if error:
             box = layout.box()
             for line in error.splitlines()[:6]:
@@ -426,7 +426,7 @@ class RETARGETOR_PT_GeneratePanel(Panel):
         draw_profile_status(layout, rig)
         active = context.active_object
         if (active is not None and active != rig and active.type == 'ARMATURE'
-                and active != rig.retargetor.model_armature):
+                and active != rig.interpose.model_armature):
             layout.label(text=f"The active armature is '{active.name}', not the character", icon='ERROR')
         if len(state.segments) > 0:
             problem = draw_segments(context, layout, rig, state, backend)
@@ -438,7 +438,7 @@ class RETARGETOR_PT_GeneratePanel(Panel):
                 layout.prop(state, "seed")
             problem = draw_range(context, layout, rig, state, backend)
             if caps.prompt:
-                layout.operator("retargetor.segment_add", icon='SEQ_STRIP_META')
+                layout.operator("interpose.segment_add", icon='SEQ_STRIP_META')
 
         task = generation.current_task
         if task is not None:
@@ -449,8 +449,8 @@ class RETARGETOR_PT_GeneratePanel(Panel):
                 # generates it, and the timeline's Generate the whole track
                 row = layout.row()
                 row.enabled = not problem
-                row.operator("retargetor.generate_inbetweens", text="Generate", icon='ANIM')
-            layout.operator("retargetor.clear_generated_keys", icon='TRASH')
+                row.operator("interpose.generate_inbetweens", text="Generate", icon='ANIM')
+            layout.operator("interpose.clear_generated_keys", icon='TRASH')
 
 
 def _error(layout, text, width=48):
@@ -463,7 +463,7 @@ def _error(layout, text, width=48):
 def draw_profile_status(layout, rig):
     """Where the character's rig profile comes from"""
     from .profile_operators import detect_profile, source_label
-    profile = rig.data.retargetor_profile
+    profile = rig.data.interpose_profile
     if len(profile.roles) > 0:
         layout.label(text=f"Rig: {source_label(profile.source)}", icon='OUTLINER_DATA_ARMATURE')
         return
@@ -481,12 +481,12 @@ def draw_range(context, layout, rig, state, backend):
     if state.range_mode == 'CUSTOM':
         row = box.row(align=True)
         row.prop(state, "range_start")
-        row.operator("retargetor.range_start_here", text="", icon='TIME')
+        row.operator("interpose.range_start_here", text="", icon='TIME')
         row.prop(state, "range_duration")
     scene = context.scene
     fps = scene.render.fps / scene.render.fps_base
     from .profile_operators import detect_profile
-    rig_profile = rig.data.retargetor_profile.to_core()
+    rig_profile = rig.data.interpose_profile.to_core()
     detected = detect_profile(rig.data) if not rig_profile.roles else None
     try:
         start, end, key_frames = generation.generation_range(rig, detected[1] if detected else rig_profile)
@@ -509,13 +509,13 @@ def draw_segments(context, layout, rig, state, backend):
     count = len(state.segments)
     item = segment_track.active_segment(state)
     row = layout.row(align=True)
-    row.operator("retargetor.segment_step", text="", icon='TRIA_LEFT').step = -1
+    row.operator("interpose.segment_step", text="", icon='TRIA_LEFT').step = -1
     row.label(text=f"Segment {state.segments_active_index + 1} / {count}", icon='SEQ_STRIP_META')
-    row.operator("retargetor.segment_step", text="", icon='TRIA_RIGHT').step = 1
+    row.operator("interpose.segment_step", text="", icon='TRIA_RIGHT').step = 1
     row.separator()
-    row.operator("retargetor.segment_add", text="", icon='ADD')
-    row.operator("retargetor.segment_remove", text="", icon='REMOVE')
-    row.operator("retargetor.segment_split", text="", icon='MOD_EDGESPLIT')
+    row.operator("interpose.segment_add", text="", icon='ADD')
+    row.operator("interpose.segment_remove", text="", icon='REMOVE')
+    row.operator("interpose.segment_split", text="", icon='MOD_EDGESPLIT')
     caps = backend.capabilities
     if item is not None:
         if caps.prompt:
@@ -531,7 +531,7 @@ def draw_segments(context, layout, rig, state, backend):
         label = state_label.get(segment_track.segment_state(item))
         if label:
             layout.label(text=label, icon='INFO')
-        layout.operator("retargetor.regenerate_segment", text=f"{segment_track.generate_verb(item)} Segment",
+        layout.operator("interpose.regenerate_segment", text=f"{segment_track.generate_verb(item)} Segment",
                         icon='FILE_REFRESH')
 
     box = layout.box()
@@ -563,10 +563,10 @@ def draw_segments(context, layout, rig, state, backend):
 
 ### The animation editors' headers: everything from the timeline
 
-class RTGTR_MT_EditorMenu(Menu):
-    """Retargetor in the animation editors: generate, the prompt segments, the model"""
-    bl_idname = "RTGTR_MT_editor_menu"
-    bl_label = "Retargetor"
+class INTERPOSE_MT_EditorMenu(Menu):
+    """Interpose in the animation editors: generate, the prompt segments, the model"""
+    bl_idname = "INTERPOSE_MT_editor_menu"
+    bl_label = "Interpose"
 
     def draw(self, context):
         layout = self.layout
@@ -577,27 +577,27 @@ class RTGTR_MT_EditorMenu(Menu):
             layout.label(text="Choose the character in the Retarget panel", icon='INFO')
         else:
             layout.label(text=f"Character: {rig.name}", icon='ARMATURE_DATA')
-        layout.operator("retargetor.generate_inbetweens", text="Generate Whole Track", icon='ANIM')
+        layout.operator("interpose.generate_inbetweens", text="Generate Whole Track", icon='ANIM')
         layout.separator()
         if rig is not None and len(state.segments) > 0:
             from . import segment_track
             verb = segment_track.generate_verb(segment_track.active_segment(state))
-            layout.operator("retargetor.regenerate_segment", text=f"{verb} Active Segment", icon='FILE_REFRESH')
-            props = layout.operator("retargetor.segment_edit", text="Edit Active Segment...", icon='GREASEPENCIL')
+            layout.operator("interpose.regenerate_segment", text=f"{verb} Active Segment", icon='FILE_REFRESH')
+            props = layout.operator("interpose.segment_edit", text="Edit Active Segment...", icon='GREASEPENCIL')
             props.character, props.index = rig.name, state.segments_active_index
-        layout.operator("retargetor.segment_add", icon='ADD')
-        layout.operator("retargetor.segment_split", icon='MOD_EDGESPLIT')
-        layout.operator("retargetor.segment_remove", icon='REMOVE')
-        layout.prop(context.scene, "retargetor_show_segments")
+        layout.operator("interpose.segment_add", icon='ADD')
+        layout.operator("interpose.segment_split", icon='MOD_EDGESPLIT')
+        layout.operator("interpose.segment_remove", icon='REMOVE')
+        layout.prop(context.scene, "interpose_show_segments")
         layout.separator()
-        layout.operator("retargetor.clear_generated_keys", icon='TRASH')
+        layout.operator("interpose.clear_generated_keys", icon='TRASH')
         layout.separator()
         label, icon, start, stop, error = worker_status(backend)
         layout.label(text=f"{backend.label}: {label}", icon=icon)
         if start:
-            layout.operator("retargetor.backend_start", text=f"{start} {backend.label}", icon='PLAY')
+            layout.operator("interpose.backend_start", text=f"{start} {backend.label}", icon='PLAY')
         if stop:
-            layout.operator("retargetor.backend_stop", text=f"Stop {backend.label}", icon='PAUSE')
+            layout.operator("interpose.backend_stop", text=f"Stop {backend.label}", icon='PAUSE')
         for line in error.splitlines()[:6]:
             layout.label(text=line, icon='ERROR')
         props = layout.operator("preferences.addon_show", text="Preferences...", icon='PREFERENCES')
@@ -606,17 +606,17 @@ class RTGTR_MT_EditorMenu(Menu):
 
 def draw_editor_header(self, context):
     """Appended to the Dope Sheet (Timeline included) and Graph Editor headers: the model's state, the
-    generation's progress or the Generate button, the bands' visibility and the Retargetor menu"""
+    generation's progress or the Generate button, the bands' visibility and the Interpose menu"""
     layout = self.layout
     scene = context.scene
-    if not hasattr(scene, "retargetor_show_segments"):
+    if not hasattr(scene, "interpose_show_segments"):
         return
     backend = active_backend(context)
     layout.separator()
     row = layout.row(align=True)
-    show = scene.retargetor_show_segments
-    row.prop(scene, "retargetor_show_segments", text="", icon='HIDE_OFF' if show else 'HIDE_ON')
-    row.menu(RTGTR_MT_EditorMenu.bl_idname, text="", icon='OUTLINER_OB_ARMATURE')
+    show = scene.interpose_show_segments
+    row.prop(scene, "interpose_show_segments", text="", icon='HIDE_OFF' if show else 'HIDE_ON')
+    row.menu(INTERPOSE_MT_EditorMenu.bl_idname, text="", icon='OUTLINER_OB_ARMATURE')
     task = generation.current_task
     if task is not None:
         draw_progress(layout, task, width=12)
@@ -632,14 +632,14 @@ def draw_editor_header(self, context):
     else:
         row.label(text=backend.label, icon='ERROR' if error else icon)
         if start:
-            row.operator("retargetor.backend_start", text="", icon='PLAY')
-    layout.operator("retargetor.generate_inbetweens", text="Generate", icon='ANIM')
+            row.operator("interpose.backend_start", text="", icon='PLAY')
+    layout.operator("interpose.generate_inbetweens", text="Generate", icon='ANIM')
 
 
 _HEADERS = ("DOPESHEET_HT_header", "GRAPH_HT_header")
 
 
-class RTGTR_UL_Limbs(UIList):
+class INTERPOSE_UL_Limbs(UIList):
     """Limbs whose FK controls can be snapped to their IK pose"""
     def draw_item(self, context, layout, data, item, icon, active_data, active_property, index):
         row = layout.row(align=True)
@@ -649,15 +649,15 @@ class RTGTR_UL_Limbs(UIList):
 
 ### Registration
 classes = (
-    RTGTR_UL_Bones,
-    RTGTR_UL_Limbs,
-    RETARGETOR_PT_RetargetPanel,
-    RETARGETOR_PT_RigProfilePanel,
-    RETARGETOR_PT_RigLimbsPanel,
-    RETARGETOR_PT_RigAdvancedPanel,
-    RTGTR_MT_ProfileFiles,
-    RETARGETOR_PT_GeneratePanel,
-    RTGTR_MT_EditorMenu,
+    INTERPOSE_UL_Bones,
+    INTERPOSE_UL_Limbs,
+    INTERPOSE_PT_RetargetPanel,
+    INTERPOSE_PT_RigProfilePanel,
+    INTERPOSE_PT_RigLimbsPanel,
+    INTERPOSE_PT_RigAdvancedPanel,
+    INTERPOSE_MT_ProfileFiles,
+    INTERPOSE_PT_GeneratePanel,
+    INTERPOSE_MT_EditorMenu,
 )
 
 def register():

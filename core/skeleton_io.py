@@ -6,8 +6,8 @@ import bpy
 from .skeleton import Skeleton
 
 # Custom properties on the armature data: the skeleton it was built from, and which backend described it
-SKELETON_PROPERTY = "retargetor_skeleton"
-BACKEND_PROPERTY = "retargetor_backend"
+SKELETON_PROPERTY = "interpose_skeleton"
+BACKEND_PROPERTY = "interpose_backend"
 
 
 def build_armature(context, skeleton, name, collection, backend_id=""):

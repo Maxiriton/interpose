@@ -4,7 +4,7 @@ Each test runs in its own Blender process, always with --factory-startup (your B
 repository as an extension), for example:
     blender -b --factory-startup [file.blend] --python tests/blender/test_panel.py -- [args]
 
-The add-on is imported from this repository as the package "retargetor", whatever the folder is called.
+The add-on is imported from this repository as the package "interpose", whatever the folder is called.
 """
 import importlib.util
 import json
@@ -20,9 +20,9 @@ REPO = os.path.abspath(os.path.join(HERE, "..", ".."))
 FIXTURES = os.path.join(REPO, "tests", "fixtures")
 PRESETS = os.path.join(REPO, "presets")
 
-# Spike outputs (not committed). Override with the RETARGETOR_SPIKES environment variable,
+# Spike outputs (not committed). Override with the INTERPOSE_SPIKES environment variable,
 # pointing to a folder holding phase0/out and phase1/out.
-SPIKES = os.environ.get("RETARGETOR_SPIKES", os.path.join(REPO, "spikes"))
+SPIKES = os.environ.get("INTERPOSE_SPIKES", os.path.join(REPO, "spikes"))
 PHASE0_OUT = os.path.join(SPIKES, "phase0", "out")
 PHASE1_OUT = os.path.join(SPIKES, "phase1", "out")
 
@@ -33,32 +33,32 @@ def script_args():
 
 
 def register_addon():
-    """Import the add-on from the repository as "retargetor" and register it. Returns the package."""
-    if "retargetor" not in sys.modules:
+    """Import the add-on from the repository as "interpose" and register it. Returns the package."""
+    if "interpose" not in sys.modules:
         spec = importlib.util.spec_from_file_location(
-            "retargetor", os.path.join(REPO, "__init__.py"), submodule_search_locations=[REPO])
+            "interpose", os.path.join(REPO, "__init__.py"), submodule_search_locations=[REPO])
         package = importlib.util.module_from_spec(spec)
-        sys.modules["retargetor"] = package
+        sys.modules["interpose"] = package
         spec.loader.exec_module(package)
-    package = sys.modules["retargetor"]
-    if not hasattr(bpy.types.Object, "retargetor"):
+    package = sys.modules["interpose"]
+    if not hasattr(bpy.types.Object, "interpose"):
         package.register()
     # The add-on isn't enabled through Blender here: give it an entry so its preferences exist
-    if bpy.context.preferences.addons.get("retargetor") is None:
-        bpy.context.preferences.addons.new().module = "retargetor"
+    if bpy.context.preferences.addons.get("interpose") is None:
+        bpy.context.preferences.addons.new().module = "interpose"
     return package
 
 
 def set_backend(backend_id, developer=False, python=None, **settings):
     """Choose the active backend in the add-on preferences, and set its settings. python: the model's existing
     environment (its Python executable), instead of one installed by the add-on; "managed": the one the add-on
-    installed, in the models' folder given by the RETARGETOR_MODELS_FOLDER environment variable (else the default)."""
-    prefs = bpy.context.preferences.addons["retargetor"].preferences
+    installed, in the models' folder given by the INTERPOSE_MODELS_FOLDER environment variable (else the default)."""
+    prefs = bpy.context.preferences.addons["interpose"].preferences
     prefs.developer = developer
     prefs.backend = backend_id
     if python == "managed":
         getattr(prefs, f"setup_{backend_id}").environment = 'MANAGED'
-        prefs.models_folder = os.environ.get("RETARGETOR_MODELS_FOLDER", "")
+        prefs.models_folder = os.environ.get("INTERPOSE_MODELS_FOLDER", "")
     elif python is not None:
         setup = getattr(prefs, f"setup_{backend_id}")
         setup.environment = 'EXISTING'
@@ -76,18 +76,18 @@ def load_json(path):
 
 def soma_fixture():
     """(role -> SOMA joint map, root joint) of the Kimodo backend"""
-    from retargetor.backends.kimodo.joints import JOINT_MAP, ROOT_JOINT
+    from interpose.backends.kimodo.joints import JOINT_MAP, ROOT_JOINT
     return dict(JOINT_MAP), ROOT_JOINT
 
 
 def rigify_profile():
-    from retargetor.core.profile import RigProfile
+    from interpose.core.profile import RigProfile
     return RigProfile.from_dict(load_json(os.path.join(PRESETS, "rigify_human.json")))
 
 
 def require(path):
     if not os.path.exists(path):
-        raise SystemExit(f"Missing test input: {path}\nRun the spike commands (spikes/*/README.md) or set RETARGETOR_SPIKES.")
+        raise SystemExit(f"Missing test input: {path}\nRun the spike commands (spikes/*/README.md) or set INTERPOSE_SPIKES.")
     return path
 
 
@@ -199,7 +199,7 @@ def make_test_scene():
 
 def rig_keys(rig):
     """{(data path, index, frame): value} of every key of the rig's action"""
-    from retargetor import generation
+    from interpose import generation
     bag = generation.channelbag(rig)
     keys = {}
     if bag is None:
@@ -216,9 +216,9 @@ def check_rig_model(checks, rig, label, expect_model=True):
     generation changes what the next one starts from): the objects must be looked up again afterwards. Returns
     the rig of the file opened again, with the second generation's keys."""
     import tempfile
-    from retargetor import generation
+    from interpose import generation
     name = rig.name
-    copy = os.path.join(tempfile.mkdtemp(prefix="retargetor_"), "before.blend")
+    copy = os.path.join(tempfile.mkdtemp(prefix="interpose_"), "before.blend")
     bpy.ops.wm.save_as_mainfile(filepath=copy, copy=True)
 
     def generate(use_model):

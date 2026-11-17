@@ -51,7 +51,7 @@ def main():
     bpy.ops.wm.read_factory_settings(use_empty=True)
     bootstrap.register_addon()
     bootstrap.set_backend("interpolate", developer=True)
-    from retargetor import profile_operators, rig_check
+    from interpose import profile_operators, rig_check
     scene, view_layer = bpy.context.scene, bpy.context.view_layer
 
     # Every convention, detected through Blender's bones
@@ -65,8 +65,8 @@ def main():
     # A Mixamo character: chosen, it sets itself up
     rig = build("mixamo", "mixamorig1:", name="mixamo")
     view_layer.objects.active = rig
-    scene.retargetor_target = rig
-    profile = rig.data.retargetor_profile
+    scene.interpose_target = rig
+    profile = rig.data.interpose_profile
     checks.check(profile.source == profile_operators.DETECTED_SOURCE and len(profile.roles) == 22,
                  "a Mixamo skeleton is set up when chosen as the character")
     checks.check(not profile.use_controls, "its bones are read and written")
@@ -74,24 +74,24 @@ def main():
     checks.check(hips.write_bone == "mixamorig1:Hips" and hips.use_translation, "the hips are written and translated")
     checks.check(draw_errors() == [], "the Rig Setup panels draw")
 
-    checks.check(run(bpy.ops.retargetor.check_rig) == {'FINISHED'}, "Check Rig")
+    checks.check(run(bpy.ops.interpose.check_rig) == {'FINISHED'}, "Check Rig")
     checks.check(profile_operators.last_check(rig.data, profile.to_core()) == [], "no problem on the skeleton")
     checks.check(draw_errors() == [], "the panels draw the check")
 
     # A role taken out, then given back by picking its bone
-    checks.check(run(bpy.ops.retargetor.profile_clear_role, role="hand.L") == {'FINISHED'}, "Clear Role")
+    checks.check(run(bpy.ops.interpose.profile_clear_role, role="hand.L") == {'FINISHED'}, "Clear Role")
     problems = rig_check.profile_problems(rig.data, profile.to_core())
     checks.check([p.subject for p in problems if p.level == rig_check.ERROR] == ["hand.L"], "the missing hand is an error")
     checks.check(draw_errors() == [], "the panels draw a missing role")
     bpy.ops.object.mode_set(mode='POSE')
     rig.data.bones.active = rig.data.bones["mixamorig1:LeftHand"]
-    checks.check(run(bpy.ops.retargetor.profile_assign, role="hand.L") == {'FINISHED'}, "Assign Active Bone")
-    from retargetor.core.roles import ROLES
+    checks.check(run(bpy.ops.interpose.profile_assign, role="hand.L") == {'FINISHED'}, "Assign Active Bone")
+    from interpose.core.roles import ROLES
     order = [r.id for r in ROLES]
     roles = [b.role for b in profile.roles]
     checks.check(roles == sorted(roles, key=order.index), "the role goes back in its place")
     checks.check(profile.to_core().binding("hand.L").write_bone == "mixamorig1:LeftHand", "the picked bone is written")
-    checks.check(run(bpy.ops.retargetor.profile_select_role, role="forearm.L") == {'FINISHED'}, "Select Bones")
+    checks.check(run(bpy.ops.interpose.profile_select_role, role="forearm.L") == {'FINISHED'}, "Select Bones")
     checks.check([pb.name for pb in rig.pose.bones if pb.select] == ["mixamorig1:LeftForeArm"], "the role's bone selected")
     bpy.ops.object.mode_set(mode='OBJECT')
 
@@ -129,8 +129,8 @@ def main():
         hips.location = (0.0, 0.0, 0.3 * angle / 70.0)
         hips.keyframe_insert("location", frame=frame)
     scene.frame_set(1)
-    from retargetor import generation
-    checks.check(run(bpy.ops.retargetor.generate_inbetweens) == {'FINISHED'}, "Generate on the Mixamo skeleton")
+    from interpose import generation
+    checks.check(run(bpy.ops.interpose.generate_inbetweens) == {'FINISHED'}, "Generate on the Mixamo skeleton")
     fcurve = generation.channelbag(rig).fcurves.find('pose.bones["mixamorig1:LeftArm"].rotation_quaternion', index=0)
     types = {round(p.co.x): p.type for p in fcurve.keyframe_points}
     checks.check(types.get(1) == 'KEYFRAME' and types.get(31) == 'KEYFRAME' and types.get(16) == 'GENERATED',
@@ -143,10 +143,10 @@ def main():
     incomplete = build("ue5", name="no_right_arm", skip=("_r",))
     view_layer.objects.active = incomplete
     checks.check(profile_operators.detect_profile(incomplete.data) is None, "an incomplete skeleton isn't applied alone")
-    scene.retargetor_target = incomplete
-    checks.check(len(incomplete.data.retargetor_profile.roles) == 0, "choosing it leaves its profile empty")
-    run(bpy.ops.retargetor.profile_detect)
-    found = {b.role for b in incomplete.data.retargetor_profile.roles}
+    scene.interpose_target = incomplete
+    checks.check(len(incomplete.data.interpose_profile.roles) == 0, "choosing it leaves its profile empty")
+    run(bpy.ops.interpose.profile_detect)
+    found = {b.role for b in incomplete.data.interpose_profile.roles}
     checks.check("hand.L" in found and "thigh.L" in found and "hand.R" not in found and "thigh.R" not in found,
                  "Detect Bones keeps what it found")
     checks.check(draw_errors() == [], "the panels draw an incomplete profile")

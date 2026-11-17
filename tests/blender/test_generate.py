@@ -59,7 +59,7 @@ def user_keys(keys):
 def run_operator():
     """The operator's result; an error report raises in background mode, it counts as CANCELLED"""
     try:
-        return bpy.ops.retargetor.generate_inbetweens('EXEC_DEFAULT')
+        return bpy.ops.interpose.generate_inbetweens('EXEC_DEFAULT')
     except RuntimeError as e:
         print(f"(operator error) {e}")
         return {'CANCELLED'}
@@ -112,18 +112,18 @@ def edit_key(rig, generation, path, index, frame, value=None, shift=0.0):
 def draw_generate_panel():
     """Errors found drawing the Generate panel (see test_panel.CheckingLayout)"""
     from test_panel import CheckingLayout
-    from retargetor import ui
+    from interpose import ui
     errors = []
-    ui.RETARGETOR_PT_GeneratePanel.draw(type("Panel", (), {"layout": CheckingLayout(errors)})(), bpy.context)
+    ui.INTERPOSE_PT_GeneratePanel.draw(type("Panel", (), {"layout": CheckingLayout(errors)})(), bpy.context)
     return errors
 
 
 def main():
     checks = bootstrap.Checks("test_generate")
     bootstrap.register_addon()
-    from retargetor import generation
-    from retargetor.core.skeleton_io import armature_backend
-    from retargetor.properties import get_character
+    from interpose import generation
+    from interpose.core.skeleton_io import armature_backend
+    from interpose.properties import get_character
 
     bootstrap.set_backend("interpolate", developer=True)
     scene = bpy.context.scene
@@ -131,15 +131,15 @@ def main():
     rig = bpy.data.objects["rig"]
     view_layer.objects.active = rig
     # A Rigify rig needs no setup: choosing it as the character applies the Rigify preset
-    from retargetor.profile_operators import detect_preset
-    checks.check(len(rig.data.retargetor_profile.roles) == 0, "no rig profile at first")
+    from interpose.profile_operators import detect_preset
+    checks.check(len(rig.data.interpose_profile.roles) == 0, "no rig profile at first")
     detected = detect_preset(rig.data)
     checks.check(detected is not None and detected[0].startswith("Rigify"), "the Rigify preset matches the rig")
-    scene.retargetor_target = rig
-    checks.check(len(rig.data.retargetor_profile.roles) == 23 and rig.data.retargetor_profile.source == detected[0],
-                 f"choosing the character applied the preset ({rig.data.retargetor_profile.source})")
+    scene.interpose_target = rig
+    checks.check(len(rig.data.interpose_profile.roles) == 23 and rig.data.interpose_profile.source == detected[0],
+                 f"choosing the character applied the preset ({rig.data.interpose_profile.source})")
     checks.check(detect_preset(bpy.data.armatures.new("empty")) is None, "no preset for an armature without its bones")
-    rig_profile = rig.data.retargetor_profile.to_core()
+    rig_profile = rig.data.interpose_profile.to_core()
     controls = [b.write_bone for b in rig_profile.roles if b.write_bone]
     org_bones = [b.read_bone for b in rig_profile.roles if b.read_bone]
     limbs = [b.read_bone for b in rig_profile.roles if b.offset_mode == 'ROLL']
@@ -151,10 +151,10 @@ def main():
 
     # 1. First generation
     start = time.perf_counter()
-    checks.check(bpy.ops.retargetor.generate_inbetweens('EXEC_DEFAULT') == {'FINISHED'}, "generation finished")
+    checks.check(bpy.ops.interpose.generate_inbetweens('EXEC_DEFAULT') == {'FINISHED'}, "generation finished")
     print(f"FINDING interpolation backend, 120 frames, whole operator: {time.perf_counter() - start:.2f} s "
           f"(including the worker start)")
-    model = rig.retargetor.model_armature
+    model = rig.interpose.model_armature
     checks.check(model is not None and armature_backend(model) == "interpolate" and model.hide_get(),
                  "model armature built, hidden")
     checks.check(len(model.data.bones) == 23, f"model skeleton: one joint per role ({len(model.data.bones)})")
@@ -181,7 +181,7 @@ def main():
     checks.check(quaternion_flips(rig, generation, controls) == 0, "quaternion signs continuous across user keys")
 
     # The rig follows the model's motion between the key poses
-    from retargetor.backends.interpolate.backend import InterpolateBackend
+    from interpose.backends.interpolate.backend import InterpolateBackend
     joint_of = {b.read_bone: InterpolateBackend.joint_map[b.role] for b in rig_profile.roles}
     total = count = 0
     worst = 0.0
@@ -264,7 +264,7 @@ def main():
 
     # A backend taking partial poses gets the joints keyed on frame 90 only (the head); whole key poses elsewhere
     import dataclasses
-    from retargetor.backends.registry import get
+    from interpose.backends.registry import get
     backend = get("interpolate")
     capabilities = backend.capabilities
     backend.capabilities = dataclasses.replace(capabilities, partial_poses=True)
@@ -293,7 +293,7 @@ def main():
     edit_key(rig, generation, torso, 2, 70.4, shift=-0.4)
     checks.check(key_type(rig, generation, torso, 2, 70) == 'GENERATED', "key moved back: Generated again")
     # An edit the handler didn't see (handler off): retyped when generating; the frame becomes a key pose
-    from retargetor import generated_keys
+    from interpose import generated_keys
     bpy.app.handlers.depsgraph_update_post.remove(generated_keys.retype_edited_handler)
     edited_value = key_at(rig, generation, torso, 2, 70).co.y + 0.05
     edit_key(rig, generation, torso, 2, 70, value=edited_value)
@@ -319,7 +319,7 @@ def main():
     view_layer.update()
 
     # 2b. Custom range past the last key pose: extends the animation (the interpolation holds the last pose)
-    state = rig.retargetor
+    state = rig.interpose
     scene.frame_set(1)
     state.range_mode = 'CUSTOM'
     checks.check(state.range_start == 1, "a custom range starts on the current frame")
@@ -343,7 +343,7 @@ def main():
     checks.check(generation.generation_range(rig, rig_profile) == (100, 150, [120]), "key poses outside the range "
                                                                                        "are ignored")
     checks.check(run_operator() == {'CANCELLED'}, "one key pose refused by the interpolation backend")
-    from retargetor.backends.registry import get
+    from interpose.backends.registry import get
     problem = get("interpolate").range_problem(100, 150, 30.0, 1)
     checks.check("at least 2 key poses" in problem, f"the message says why ({problem})")
     checks.check(draw_generate_panel() == [], "Generate panel draws a custom range")
@@ -353,8 +353,8 @@ def main():
 
     # 2c. Prompt segments with a backend generating one request per segment (the interpolation backend): each one
     # starts from the previous one's last frame, without transition
-    from retargetor import segment_track
-    from retargetor.core.segments import PromptSegment
+    from interpose import segment_track
+    from interpose.core.segments import PromptSegment
     segment_track.write_track(state, [PromptSegment(1, 61, "walks", 1), PromptSegment(62, 120, "runs", 2)])
     keys_before = keys_by_type(rig, generation)
     task = generation.GenerationTask()
@@ -435,7 +435,7 @@ def main():
     checks.check(any("segment 3 (after)" in note for note in task.notes), f"the report says so ({task.notes})")
     # The operator, on the active segment
     state.segments_active_index = 0
-    checks.check(bpy.ops.retargetor.regenerate_segment('EXEC_DEFAULT') == {'FINISHED'},
+    checks.check(bpy.ops.interpose.regenerate_segment('EXEC_DEFAULT') == {'FINISHED'},
                  "Regenerate Segment, on the active segment")
     states = [segment_track.segment_state(item) for item in state.segments]
     checks.check(states == ['GENERATED', 'GENERATED', 'NEW'], f"segment 1 generated, segment 3 still new ({states})")
@@ -446,7 +446,7 @@ def main():
     chunk, _notes = generation.segment_chunk(state, get("kimodo"), 1, 30.0)
     checks.check((chunk.context_before, chunk.context_after, chunk.request_start) == ((57, 61), (91, 95), 62),
                  f"Kimodo: 5 frames on each side ({chunk.context_before}, {chunk.context_after})")
-    from retargetor.backends.base import Backend, Capabilities
+    from interpose.backends.base import Backend, Capabilities
     plain = type("Plain", (Backend,), {"label": "Plain", "capabilities": Capabilities(min_key_poses=2)})()
     chunk, notes = generation.segment_chunk(state, plain, 1, 30.0)
     checks.check((chunk.context_before, chunk.context_after, chunk.request_start) == (None, None, 61)
@@ -519,8 +519,8 @@ def main():
 
     # The switch going to IK between two key poses, on a limb without IK snap: refused, the rig untouched (with an
     # IK snap, the limb plays the motion in IK and FK alike: see test_generate_ik.py)
-    rig.data.retargetor_profile.limbs[0].ik_snap.clear()
-    rig_profile = rig.data.retargetor_profile.to_core()
+    rig.data.interpose_profile.limbs[0].ik_snap.clear()
+    rig_profile = rig.data.interpose_profile.to_core()
     switch["IK_FK"] = 0.0
     switch.keyframe_insert('["IK_FK"]', frame=100)
     keys_before = keys_by_type(rig, generation)
@@ -536,9 +536,9 @@ def main():
     # 4. A deleted character: the scene's pointer keeps the object alive, out of every scene
     for collection in list(rig.users_collection):
         collection.objects.unlink(rig)
-    checks.check(scene.retargetor_target == rig, "the deleted rig is still the scene's target")
+    checks.check(scene.interpose_target == rig, "the deleted rig is still the scene's target")
     checks.check(get_character(bpy.context) == (None, None), "a target out of the scene isn't the character")
-    checks.check(not bpy.ops.retargetor.generate_inbetweens.poll(), "no generation on a target out of the scene")
+    checks.check(not bpy.ops.interpose.generate_inbetweens.poll(), "no generation on a target out of the scene")
     checks.finish()
 
 

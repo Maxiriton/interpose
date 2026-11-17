@@ -52,7 +52,7 @@ def in_ik(rig, limb):
 
 
 def key_bone(pb, frame):
-    from retargetor.core.retarget.snap import rotation_data_path
+    from interpose.core.retarget.snap import rotation_data_path
     pb.keyframe_insert(rotation_data_path(pb), frame=frame)
     if not any(pb.lock_location):
         pb.keyframe_insert("location", frame=frame)
@@ -61,7 +61,7 @@ def key_bone(pb, frame):
 def pose_key_poses(rig, profile, extra=()):
     """Two key poses made with the rig's controls, and the `extra` controls turned on both; returns the bones
     keyed"""
-    from retargetor.core.retarget.snap import set_rotation
+    from interpose.core.retarget.snap import set_rotation
     limbs = {limb.name: limb for limb in profile.limbs}
     posed = []   # (pose bone, posed callback)
 
@@ -132,15 +132,15 @@ def main():
     checks = bootstrap.Checks(f"test_rigs {name}")
     bootstrap.register_addon()
     bootstrap.set_backend("interpolate", developer=True)
-    from retargetor import profile_operators, rig_check
+    from interpose import profile_operators, rig_check
     scene, view_layer = bpy.context.scene, bpy.context.view_layer
     rig = bpy.data.objects[name]
     include(rig)
     if rig.mode != 'OBJECT':
         bpy.ops.object.mode_set(mode='OBJECT')
     view_layer.objects.active = rig
-    scene.retargetor_target = rig
-    profile = rig.data.retargetor_profile
+    scene.interpose_target = rig
+    profile = rig.data.interpose_profile
     want = profile_operators.DETECTED_SOURCE if expected == "detected" else expected
     checks.check(profile.source == want, f"set up when chosen: {profile_operators.source_label(profile.source)}")
     rig_profile = profile.to_core()
@@ -158,7 +158,7 @@ def main():
     before = read_points(rig, rig_profile, KEY_FRAMES)
     halfway = (KEY_FRAMES[0] + KEY_FRAMES[1]) // 2
     scene.frame_set(KEY_FRAMES[0])
-    from retargetor import generation
+    from interpose import generation
     task = generation.GenerationTask()
     start = time.perf_counter()
     ok = task.run(bpy.context, rig)
@@ -186,7 +186,7 @@ def main():
 
     if kimodo_python:
         bootstrap.set_backend("kimodo", python=kimodo_python)
-        state = rig.retargetor
+        state = rig.interpose
         state.prompt = "A person walks forward"
         state.range_mode = 'CUSTOM'
         state.range_start, state.range_duration = 100, 60
@@ -203,7 +203,7 @@ def main():
         checks.check(walked.length > 0.5, "Kimodo: the character walks")
         # The feet turn from their rest pose like the model's (on tiptoe when a flat foot control was given the
         # direction of a sloping foot)
-        from retargetor.backends.kimodo.joints import JOINT_MAP
+        from interpose.backends.kimodo.joints import JOINT_MAP
         model = state.model_armature
 
         def from_rest(obj, name):

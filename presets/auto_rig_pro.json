@@ -1,6 +1,6 @@
 {
     "name": "Auto-Rig Pro",
-    "format": "retargetor.rig_profile",
+    "format": "interpose.rig_profile",
     "version": 1,
     "roles": [
         {

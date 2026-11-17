@@ -43,15 +43,15 @@ def setup(kimodo_python):
     bootstrap.set_backend("kimodo", python=kimodo_python)
     rig = bpy.data.objects["rig"]
     bpy.context.view_layer.objects.active = rig
-    bpy.ops.retargetor.profile_load_preset(preset="rigify_human")
-    bpy.context.scene.retargetor_target = rig
-    rig.retargetor.prompt = PROMPT
-    rig.retargetor.seed = SEED
+    bpy.ops.interpose.profile_load_preset(preset="rigify_human")
+    bpy.context.scene.interpose_target = rig
+    rig.interpose.prompt = PROMPT
+    rig.interpose.seed = SEED
     return rig
 
 
 def org_bones(rig):
-    return [b.read_bone for b in rig.data.retargetor_profile.to_core().roles if b.read_bone]
+    return [b.read_bone for b in rig.data.interpose_profile.to_core().roles if b.read_bone]
 
 
 def motion_snapshot(rig, frames):
@@ -92,7 +92,7 @@ def compare(a, b, pairs, transform=Matrix.Identity(4)):
 
 def generate(checks, label, segment=None):
     rig = bpy.data.objects["rig"]
-    from retargetor import generation
+    from interpose import generation
     task = generation.GenerationTask()
     start = time.perf_counter()
     ok = task.run(bpy.context, rig, segment=segment)
@@ -104,9 +104,9 @@ def generate(checks, label, segment=None):
 
 def check_follows_model(checks, rig, frames, label):
     """The rig's limbs follow the model's joints"""
-    from retargetor.backends.kimodo.joints import JOINT_MAP
-    model = rig.retargetor.model_armature
-    profile = rig.data.retargetor_profile.to_core()
+    from interpose.backends.kimodo.joints import JOINT_MAP
+    model = rig.interpose.model_armature
+    profile = rig.data.interpose_profile.to_core()
     limbs = [(b.read_bone, JOINT_MAP[b.role]) for b in profile.roles if b.offset_mode == 'ROLL']
     total = count = 0
     worst = 0.0
@@ -135,7 +135,7 @@ def run_base(checks, kimodo_python, out_dir, spike_dump):
     keys = [1, 61, 120]
     before = motion_snapshot(rig, keys)
     generate(checks, "base, first generation (starts Kimodo, loads the model)")
-    model = rig.retargetor.model_armature
+    model = rig.interpose.model_armature
     checks.check(len(model.data.bones) == 77, f"SOMA armature built from the Kimodo install ({len(model.data.bones)} bones)")
 
     # The armature built from Kimodo's skeleton is the one Phase 0 imported from Kimodo's BVH
@@ -214,7 +214,7 @@ def run_heading(checks, kimodo_python, out_dir):
 def run_fps24(checks, kimodo_python, out_dir):
     rig = setup(kimodo_python)
     scene = bpy.context.scene
-    from retargetor import generation
+    from interpose import generation
     # Same times at 24 fps: 0 s, 2 s, 3.97 s -> frames 1, 49, 96 (the last one 0.01 s earlier)
     moves = {61: 49, 120: 96}
     for fcurve in generation.bone_fcurves(rig):
@@ -263,7 +263,7 @@ def angle_between(a, b):
 
 
 def generated_frames(rig, bone="upper_arm_fk.L"):
-    from retargetor import generation
+    from interpose import generation
     bag = generation.channelbag(rig)
     fcurve = bag.fcurves.find(f'pose.bones["{bone}"].rotation_quaternion', index=0)
     return {round(p.co.x) for p in fcurve.keyframe_points if p.type == 'GENERATED'}
@@ -280,7 +280,7 @@ def jump_cm(rig, frame_a, frame_b, bone="ORG-spine"):
 def run_range(checks, kimodo_python):
     rig = setup(kimodo_python)
     scene = bpy.context.scene
-    state = rig.retargetor
+    state = rig.interpose
 
     # The prompt alone, frames 200-289, past every key pose; the whole character turned 90 degrees (Rigify's
     # root: not a control of the profile, so it doesn't make a key pose)
@@ -293,7 +293,7 @@ def run_range(checks, kimodo_python):
     start_heading = hips_heading(rig)
     state.range_mode = 'CUSTOM'
     state.range_start, state.range_duration = 200, 90
-    rig.retargetor.prompt = "A person walks forward"
+    rig.interpose.prompt = "A person walks forward"
     task = generate(checks, "prompt only, first generation (starts Kimodo)")
     checks.check(task.key_frames == [] and (task.start_frame, task.end_frame) == (200, 289),
                  f"no key pose, frames 200-289 ({task.key_frames})")
@@ -347,7 +347,7 @@ def run_ik(checks, kimodo_python, out_dir):
     keys = [1, 61, 120]
     before = motion_snapshot(rig, keys)
     from test_generate_ik import ik_vs_fk, in_fk
-    switches = {limb.name: rig.pose.bones[limb.switch_bone] for limb in rig.data.retargetor_profile.to_core().limbs}
+    switches = {limb.name: rig.pose.bones[limb.switch_bone] for limb in rig.data.interpose_profile.to_core().limbs}
     checks.check(all(s["IK_FK"] == 0.0 for s in switches.values()), "every limb starts in IK")
     task = generate(checks, "IK limbs, first generation (starts Kimodo)")
     print("FINDING " + "; ".join(task.notes))
@@ -384,7 +384,7 @@ def run_ik(checks, kimodo_python, out_dir):
 
 
 def arm_key_values(rig, frame=90):
-    from retargetor import generation
+    from interpose import generation
     bag = generation.channelbag(rig)
     values = {}
     for name in ("upper_arm_fk.L", "forearm_fk.L", "hand_fk.L"):
@@ -407,7 +407,7 @@ def run_partial(checks, kimodo_python):
     for name in ("upper_arm_fk.L", "forearm_fk.L", "hand_fk.L"):
         rig.pose.bones[name].keyframe_insert("rotation_quaternion", frame=90)
     bpy.context.view_layer.update()  # the add-on retypes the keys made over generated ones
-    from retargetor import generation
+    from interpose import generation
     bag = generation.channelbag(rig)
     fcurve = bag.fcurves.find('pose.bones["forearm_fk.L"].rotation_quaternion', index=0)
     checks.check(next(p.type for p in fcurve.keyframe_points if round(p.co.x) == 90) == 'KEYFRAME',
@@ -427,7 +427,7 @@ def run_partial(checks, kimodo_python):
     check_follows_model(checks, rig, [f for f in range(1, 121) if f != 90], "partial")
     scene.frame_set(90)
     rig_hand = rig.matrix_world @ rig.pose.bones["ORG-hand.L"].head
-    model = rig.retargetor.model_armature
+    model = rig.interpose.model_armature
     model_hand = model.matrix_world @ model.pose.bones["LeftHand"].head
     print(f"FINDING partial pose: on frame 90 the rig's left hand is {(rig_hand - hand_target).length * 100:.1f} cm "
           f"from the key pose ({angle_deg(bone_direction(rig, 'ORG-hand.L'), hand_direction):.1f} deg); the model's "
@@ -458,9 +458,9 @@ def frame_steps(rig, frames):
 
 def run_segments(checks, kimodo_python):
     rig = setup(kimodo_python)
-    from retargetor import segment_track
-    from retargetor.core.segments import PromptSegment
-    state = rig.retargetor
+    from interpose import segment_track
+    from interpose.core.segments import PromptSegment
+    state = rig.interpose
     segment_track.write_track(state, [PromptSegment(*segment) for segment in SEGMENTS])
     key_frames = [1, 61, 120]
     before = motion_snapshot(rig, key_frames)
@@ -505,7 +505,7 @@ def run_segments(checks, kimodo_python):
 
 def all_keys(rig):
     """{(data_path, index): {frame: (value, type)}} for every F-curve of the rig"""
-    from retargetor import generation
+    from interpose import generation
     return {(fc.data_path, fc.array_index): {round(p.co.x): (p.co.y, p.type) for p in fc.keyframe_points}
             for fc in generation.bone_fcurves(rig)}
 
@@ -527,9 +527,9 @@ def boundary_jumps(checks, rig, boundaries, label):
 
 def run_segment(checks, kimodo_python):
     rig = setup(kimodo_python)
-    from retargetor import segment_track
-    from retargetor.core.segments import PromptSegment
-    state = rig.retargetor
+    from interpose import segment_track
+    from interpose.core.segments import PromptSegment
+    state = rig.interpose
     segment_track.write_track(state, [PromptSegment(*segment) for segment in SEGMENTS])
     key_frames = [1, 61, 120]
     generate(checks, "the whole track (starts Kimodo)")
@@ -601,7 +601,7 @@ def main():
         elif mode == "segment":
             run_segment(checks, kimodo_python)
     finally:
-        from retargetor.backends import registry
+        from interpose.backends import registry
         registry.stop_all()
     checks.finish()
 

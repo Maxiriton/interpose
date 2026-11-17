@@ -12,7 +12,7 @@ from .properties import get_character
 def character_profile(rig):
     """The rig profile of a character (core), the detected one if it is empty, or None"""
     from .profile_operators import detect_profile
-    rig_profile = rig.data.retargetor_profile.to_core()
+    rig_profile = rig.data.interpose_profile.to_core()
     if rig_profile.roles:
         return rig_profile
     detected = detect_profile(rig.data)
@@ -23,7 +23,7 @@ def first_segment_range(context, rig):
     """(start, end) of the first segment of a character: the range of its generation without segments (the custom
     range, or its key poses), else NEW_SEGMENT_SECONDS from the current frame"""
     from . import generation
-    state = rig.retargetor
+    state = rig.interpose
     if state.range_mode == 'CUSTOM':
         return state.range_start, state.range_end
     rig_profile = character_profile(rig)
@@ -44,10 +44,10 @@ def _editable_character(context):
     return rig, state
 
 
-class RTGTR_OT_SegmentAdd(Operator):
+class INTERPOSE_OT_SegmentAdd(Operator):
     """Add a prompt segment at the end of the character's track. The first one takes the character's prompt, seed
     and range"""
-    bl_idname = "retargetor.segment_add"
+    bl_idname = "interpose.segment_add"
     bl_label = "Add Prompt Segment"
     bl_options = {'REGISTER', 'UNDO'}
 
@@ -71,10 +71,10 @@ class RTGTR_OT_SegmentAdd(Operator):
         return {'FINISHED'}
 
 
-class RTGTR_OT_SegmentRemove(Operator):
+class INTERPOSE_OT_SegmentRemove(Operator):
     """Remove a prompt segment: the one before takes its frames (the one after, for the first segment). Without
     segments, the character's prompt and range are used again"""
-    bl_idname = "retargetor.segment_remove"
+    bl_idname = "interpose.segment_remove"
     bl_label = "Remove Prompt Segment"
     bl_options = {'REGISTER', 'UNDO'}
 
@@ -97,9 +97,9 @@ class RTGTR_OT_SegmentRemove(Operator):
         return {'FINISHED'}
 
 
-class RTGTR_OT_SegmentSplit(Operator):
+class INTERPOSE_OT_SegmentSplit(Operator):
     """Cut a prompt segment in two at the current frame; both parts keep its prompt and seed"""
-    bl_idname = "retargetor.segment_split"
+    bl_idname = "interpose.segment_split"
     bl_label = "Split at Current Frame"
     bl_options = {'REGISTER', 'UNDO'}
 
@@ -129,9 +129,9 @@ class RTGTR_OT_SegmentSplit(Operator):
         return {'FINISHED'}
 
 
-class RTGTR_OT_SegmentSelect(Operator):
+class INTERPOSE_OT_SegmentSelect(Operator):
     """Make a prompt segment the active one; its character becomes the one edited in the panel"""
-    bl_idname = "retargetor.segment_select"
+    bl_idname = "interpose.segment_select"
     bl_label = "Select Prompt Segment"
     bl_options = {'REGISTER', 'UNDO'}
 
@@ -145,8 +145,8 @@ class RTGTR_OT_SegmentSelect(Operator):
             if rig is None or rig.type != 'ARMATURE':
                 self.report({'ERROR'}, f"No character '{self.character}'")
                 return {'CANCELLED'}
-            if context.scene.retargetor_target != rig:
-                context.scene.retargetor_target = rig
+            if context.scene.interpose_target != rig:
+                context.scene.interpose_target = rig
         rig, state = get_character(context)
         if rig is None or not 0 <= self.index < len(state.segments):
             return {'CANCELLED'}
@@ -156,9 +156,9 @@ class RTGTR_OT_SegmentSelect(Operator):
         return {'FINISHED'}
 
 
-class RTGTR_OT_SegmentStep(Operator):
+class INTERPOSE_OT_SegmentStep(Operator):
     """Make the previous or the next prompt segment the active one"""
-    bl_idname = "retargetor.segment_step"
+    bl_idname = "interpose.segment_step"
     bl_label = "Previous / Next Segment"
     bl_options = {'REGISTER', 'UNDO'}
 
@@ -178,11 +178,11 @@ class RTGTR_OT_SegmentStep(Operator):
 
 
 classes = (
-    RTGTR_OT_SegmentAdd,
-    RTGTR_OT_SegmentRemove,
-    RTGTR_OT_SegmentSplit,
-    RTGTR_OT_SegmentSelect,
-    RTGTR_OT_SegmentStep,
+    INTERPOSE_OT_SegmentAdd,
+    INTERPOSE_OT_SegmentRemove,
+    INTERPOSE_OT_SegmentSplit,
+    INTERPOSE_OT_SegmentSelect,
+    INTERPOSE_OT_SegmentStep,
 )
 
 

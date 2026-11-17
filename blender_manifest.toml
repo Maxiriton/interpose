@@ -1,40 +1,43 @@
 schema_version = "1.0.0"
 
-id = "retargetor"
-version = "0.0.1"
-name = "Retargetor"
-tagline = "Retarget animation between armatures with different rest poses"
+id = "interpose"
+version = "0.1.0"
+name = "Interpose"
+tagline = "Generate the motion between your key poses with an AI model"
 maintainer = "Henri Hebeisen"
-# Supported types: "add-on", "theme"
 type = "add-on"
-
-# Optional link to documentation, support, source files, etc
-# website = "https://extensions.blender.org/add-ons/my-example-package/"
+website = "https://github.com/Maxiriton/interpose"
 
 # https://docs.blender.org/manual/en/dev/advanced/extensions/tags.html
 tags = ["Animation", "Rigging"]
 
 blender_version_min = "5.2.0"
 
-# License conforming to https://spdx.org/licenses/ (use "SPDX: prefix)
+# The extension is pure Python: no `platforms`. Generating needs an NVIDIA GPU (see the README); the models are
+# installed by the add-on, on request, outside the extension.
 license = [
   "SPDX:GPL-3.0-or-later",
 ]
+copyright = [
+  "2026 Henri Hebeisen",
+]
 
-# Setups are imported from / exported to JSON files
 [permissions]
-files = "Import and export retarget setups as JSON, install the motion models"
-network = "Download the motion models, their Python environment and their weights"
+network = "Download the motion models you install, and their weights"
+files = "Install the motion models, import and export rig profiles"
 
-# Build settings: only the add-on goes into the package, not the spikes, tests or project notes.
+# Only the add-on goes into the package: not the tests, spikes or project notes.
 # https://docs.blender.org/manual/en/dev/advanced/extensions/command_line_arguments.html#command-line-args-extension-build
 [build]
 paths_exclude_pattern = [
   "__pycache__/",
+  "*.blend1",
   "/.git",
   "/.git/",
   "/.gitignore",
+  "/.gitattributes",
   "/.claude/",
+  "/.vscode/",
   "/*.zip",
   "/spikes/",
   "/tests/",

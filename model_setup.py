@@ -282,9 +282,9 @@ def wrap(text, width=96):
     return lines
 
 
-class RTGTR_OT_ModelInstall(Operator):
+class INTERPOSE_OT_ModelInstall(Operator):
     """Install the model: its Python environment, its packages and its weights (downloaded)"""
-    bl_idname = "retargetor.model_install"
+    bl_idname = "interpose.model_install"
     bl_label = "Install Model"
 
     backend_id: StringProperty(options={'SKIP_SAVE', 'HIDDEN'})
@@ -349,9 +349,9 @@ class RTGTR_OT_ModelInstall(Operator):
         return {'FINISHED'}
 
 
-class RTGTR_OT_ModelCancelInstall(Operator):
+class INTERPOSE_OT_ModelCancelInstall(Operator):
     """Stop the install; it resumes where it stopped next time"""
-    bl_idname = "retargetor.model_cancel_install"
+    bl_idname = "interpose.model_cancel_install"
     bl_label = "Cancel Install"
 
     backend_id: StringProperty(options={'SKIP_SAVE', 'HIDDEN'})
@@ -363,9 +363,9 @@ class RTGTR_OT_ModelCancelInstall(Operator):
         return {'FINISHED'}
 
 
-class RTGTR_OT_ModelCheck(Operator):
+class INTERPOSE_OT_ModelCheck(Operator):
     """Check the model's setup: its environment, packages, GPU and weights"""
-    bl_idname = "retargetor.model_check"
+    bl_idname = "interpose.model_check"
     bl_label = "Check Setup"
 
     backend_id: StringProperty(options={'SKIP_SAVE', 'HIDDEN'})
@@ -408,9 +408,9 @@ def removable_cache_weights(context, backend):
     return found
 
 
-class RTGTR_OT_ModelRemove(Operator):
+class INTERPOSE_OT_ModelRemove(Operator):
     """Delete the model's environment and the weights installed with it"""
-    bl_idname = "retargetor.model_remove"
+    bl_idname = "interpose.model_remove"
     bl_label = "Remove Model"
 
     backend_id: StringProperty(options={'SKIP_SAVE', 'HIDDEN'})
@@ -469,10 +469,10 @@ class RTGTR_OT_ModelRemove(Operator):
         return {'FINISHED'}
 
 
-class RTGTR_OT_ModelSignIn(Operator):
+class INTERPOSE_OT_ModelSignIn(Operator):
     """Sign in to Hugging Face, for gated weights: opens a terminal running Hugging Face's own sign-in (from the
     browser, or with a token you paste there). The add-on never sees the token"""
-    bl_idname = "retargetor.model_sign_in"
+    bl_idname = "interpose.model_sign_in"
     bl_label = "Sign In to Hugging Face"
 
     backend_id: StringProperty(options={'SKIP_SAVE', 'HIDDEN'})
@@ -494,9 +494,9 @@ class RTGTR_OT_ModelSignIn(Operator):
         return {'FINISHED'}
 
 
-class RTGTR_OT_ModelUse(Operator):
+class INTERPOSE_OT_ModelUse(Operator):
     """Make this model the one generating the motion"""
-    bl_idname = "retargetor.model_use"
+    bl_idname = "interpose.model_use"
     bl_label = "Use This Model"
 
     backend_id: StringProperty(options={'SKIP_SAVE', 'HIDDEN'})
@@ -509,9 +509,9 @@ class RTGTR_OT_ModelUse(Operator):
         return {'FINISHED'}
 
 
-class RTGTR_OT_ModelOpenFolder(Operator):
+class INTERPOSE_OT_ModelOpenFolder(Operator):
     """Open the model's folder, or its install log"""
-    bl_idname = "retargetor.model_open_folder"
+    bl_idname = "interpose.model_open_folder"
     bl_label = "Open Folder"
 
     backend_id: StringProperty(options={'SKIP_SAVE', 'HIDDEN'})
@@ -560,13 +560,13 @@ def capabilities_text(backend):
 
 def _fix_button(row, item, backend):
     if item.fix == checks.FIX_INSTALL:
-        row.operator("retargetor.model_install", text="Install", icon='IMPORT').backend_id = backend.id
+        row.operator("interpose.model_install", text="Install", icon='IMPORT').backend_id = backend.id
     elif item.fix == checks.FIX_REPAIR:
-        props = row.operator("retargetor.model_install", text="Repair", icon='TOOL_SETTINGS')
+        props = row.operator("interpose.model_install", text="Repair", icon='TOOL_SETTINGS')
         props.backend_id, props.repair = backend.id, True
     elif item.fix == checks.FIX_SIGN_IN:
         row.operator("wm.url_open", text="Request Access", icon='URL').url = item.url
-        row.operator("retargetor.model_sign_in", text="Sign In", icon='USER').backend_id = backend.id
+        row.operator("interpose.model_sign_in", text="Sign In", icon='USER').backend_id = backend.id
     elif item.fix == checks.FIX_URL and item.url:
         row.operator("wm.url_open", text="Open Page", icon='URL').url = item.url
 
@@ -577,7 +577,7 @@ def _draw_installer(col, backend, current):
         row = col.row(align=True)
         row.progress(factor=current.fraction, type='BAR',
                      text=f"{number}/{total} {current.message}  {current.fraction * 100:.0f}%")
-        row.operator("retargetor.model_cancel_install", text="", icon='CANCEL').backend_id = backend.id
+        row.operator("interpose.model_cancel_install", text="", icon='CANCEL').backend_id = backend.id
         if current.detail:
             col.label(text=current.detail[:110])
         return
@@ -589,10 +589,10 @@ def _draw_installer(col, backend, current):
         if problem.get("gated"):
             row = box.row(align=True)
             row.operator("wm.url_open", text="Request Access", icon='URL').url = problem.get("url", "")
-            row.operator("retargetor.model_sign_in", text="Sign In", icon='USER').backend_id = backend.id
+            row.operator("interpose.model_sign_in", text="Sign In", icon='USER').backend_id = backend.id
         row = box.row(align=True)
-        row.operator("retargetor.model_install", text="Resume Install", icon='IMPORT').backend_id = backend.id
-        props = row.operator("retargetor.model_open_folder", text="Log", icon='TEXT')
+        row.operator("interpose.model_install", text="Resume Install", icon='IMPORT').backend_id = backend.id
+        props = row.operator("interpose.model_open_folder", text="Log", icon='TEXT')
         props.backend_id, props.log = backend.id, True
     elif current.state == installer.CANCELLED:
         col.label(text="Install cancelled: Install resumes it.", icon='INFO')
@@ -618,9 +618,9 @@ def draw_worker(col, backend):
     row = col.row(align=True)
     row.label(text=f"Model: {label}", icon=icon)
     if start:
-        row.operator("retargetor.backend_start", text=start, icon='PLAY')
+        row.operator("interpose.backend_start", text=start, icon='PLAY')
     if stop:
-        row.operator("retargetor.backend_stop", text="Stop", icon='PAUSE')
+        row.operator("interpose.backend_stop", text="Stop", icon='PAUSE')
     for line in wrap(error, 100)[:6] if error else []:
         col.label(text=line, icon='ERROR')
 
@@ -633,7 +633,7 @@ def draw_backend(layout, context, prefs, backend, active):
     if backend.installable:
         header.label(text=problem or "Ready", icon='ERROR' if problem and problem != "Installing" else 'NONE')
     if not active:
-        header.operator("retargetor.model_use", text="Use").backend_id = backend.id
+        header.operator("interpose.model_use", text="Use").backend_id = backend.id
     col = box.column(align=True)
     for line in wrap(backend.description, 100):
         col.label(text=line)
@@ -660,21 +660,21 @@ def draw_backend(layout, context, prefs, backend, active):
                 state = installer.read_state(layout_for(context, backend))
                 if not complete:
                     text = "Resume Install" if state is not None else "Install"
-                    row.operator("retargetor.model_install", text=text, icon='IMPORT').backend_id = backend.id
+                    row.operator("interpose.model_install", text=text, icon='IMPORT').backend_id = backend.id
                 else:
-                    props = row.operator("retargetor.model_install", text="Repair", icon='TOOL_SETTINGS')
+                    props = row.operator("interpose.model_install", text="Repair", icon='TOOL_SETTINGS')
                     props.backend_id, props.repair = backend.id, True
-        row.operator("retargetor.model_check", text="Check Setup", icon='VIEWZOOM').backend_id = backend.id
+        row.operator("interpose.model_check", text="Check Setup", icon='VIEWZOOM').backend_id = backend.id
         if managed:
-            props = row.operator("retargetor.model_open_folder", text="", icon='FILE_FOLDER')
+            props = row.operator("interpose.model_open_folder", text="", icon='FILE_FOLDER')
             props.backend_id = backend.id
-            props = row.operator("retargetor.model_open_folder", text="", icon='TEXT')
+            props = row.operator("interpose.model_open_folder", text="", icon='TEXT')
             props.backend_id, props.log = backend.id, True
             sub = row.row(align=True)
             sub.enabled = layout_for(context, backend).is_own_folder() and not installing(backend)
-            sub.operator("retargetor.model_remove", text="", icon='TRASH').backend_id = backend.id
+            sub.operator("interpose.model_remove", text="", icon='TRASH').backend_id = backend.id
         if any(w.gated for w in requirements_for(context, backend).weights):
-            row.operator("retargetor.model_sign_in", text="", icon='USER').backend_id = backend.id
+            row.operator("interpose.model_sign_in", text="", icon='USER').backend_id = backend.id
         run = check_runs.get(backend.id)
         if run is not None and run.python == environment_python(context, backend):
             _draw_checks(box.column(align=True), backend, run)
@@ -703,13 +703,13 @@ def draw_models(layout, context, prefs):
 
 
 classes = (
-    RTGTR_OT_ModelInstall,
-    RTGTR_OT_ModelCancelInstall,
-    RTGTR_OT_ModelCheck,
-    RTGTR_OT_ModelRemove,
-    RTGTR_OT_ModelSignIn,
-    RTGTR_OT_ModelUse,
-    RTGTR_OT_ModelOpenFolder,
+    INTERPOSE_OT_ModelInstall,
+    INTERPOSE_OT_ModelCancelInstall,
+    INTERPOSE_OT_ModelCheck,
+    INTERPOSE_OT_ModelRemove,
+    INTERPOSE_OT_ModelSignIn,
+    INTERPOSE_OT_ModelUse,
+    INTERPOSE_OT_ModelOpenFolder,
 )
 
 

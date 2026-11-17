@@ -158,12 +158,12 @@ class GenerateBase:
         return {'FINISHED'}
 
 
-class RTGTR_OT_GenerateInbetweens(GenerateBase, Operator):
+class INTERPOSE_OT_GenerateInbetweens(GenerateBase, Operator):
     """Generate the character's motion with the active backend: its whole track of prompt segments, or without
     segments its prompt from the first key pose to the last one or on its custom range (it becomes prompt segment 1). Key poses are the frames where a control of the rig
     profile has a key that isn't Generated; the result is written as Generated keys, never on a key pose. Esc
     cancels"""
-    bl_idname = "retargetor.generate_inbetweens"
+    bl_idname = "interpose.generate_inbetweens"
     bl_label = "Generate"
     bl_options = {'REGISTER', 'UNDO'}
 
@@ -171,11 +171,11 @@ class RTGTR_OT_GenerateInbetweens(GenerateBase, Operator):
         return None
 
 
-class RTGTR_OT_RegenerateSegment(GenerateBase, Operator):
+class INTERPOSE_OT_RegenerateSegment(GenerateBase, Operator):
     """Regenerate one prompt segment of the character, the rest of its track left as it is. With a backend that
     continues the motion around it, the segment joins its neighbours already generated without a jump (the
     transition is the model's). Only the segment's frames get new Generated keys. Esc cancels"""
-    bl_idname = "retargetor.regenerate_segment"
+    bl_idname = "interpose.regenerate_segment"
     bl_label = "Regenerate Segment"
     bl_options = {'REGISTER', 'UNDO'}
 
@@ -187,19 +187,19 @@ class RTGTR_OT_RegenerateSegment(GenerateBase, Operator):
         rig = _character(context)
         if rig is None or generation.current_task is not None or not rig.is_editable:
             return False
-        if len(rig.retargetor.segments) == 0:
+        if len(rig.interpose.segments) == 0:
             cls.poll_message_set("The character has no prompt segment")
             return False
         return True
 
     def _segment(self, context):
-        state = _character(context).retargetor
+        state = _character(context).interpose
         return state.segments_active_index if self.index < 0 else self.index
 
 
-class RTGTR_OT_RangeStartHere(Operator):
+class INTERPOSE_OT_RangeStartHere(Operator):
     """Start the character's custom range on the current frame"""
-    bl_idname = "retargetor.range_start_here"
+    bl_idname = "interpose.range_start_here"
     bl_label = "Start Here"
     bl_options = {'REGISTER', 'UNDO'}
 
@@ -209,13 +209,13 @@ class RTGTR_OT_RangeStartHere(Operator):
         return rig is not None and rig.is_editable
 
     def execute(self, context):
-        _character(context).retargetor.range_start = context.scene.frame_current
+        _character(context).interpose.range_start = context.scene.frame_current
         return {'FINISHED'}
 
 
-class RTGTR_OT_CancelGeneration(Operator):
+class INTERPOSE_OT_CancelGeneration(Operator):
     """Cancel the running generation"""
-    bl_idname = "retargetor.cancel_generation"
+    bl_idname = "interpose.cancel_generation"
     bl_label = "Cancel"
 
     @classmethod
@@ -229,11 +229,11 @@ class RTGTR_OT_CancelGeneration(Operator):
         return {'FINISHED'}
 
 
-class RTGTR_OT_ClearGeneratedKeys(Operator):
+class INTERPOSE_OT_ClearGeneratedKeys(Operator):
     """Remove the keys the add-on made on the character: its Generated keys, and the keys it made on the key poses
     (FK controls snapped to the IK pose, IK controls, IK/FK switch) unless you changed them since. Your own keys
     stay. Controls left without any key go back to their rest pose"""
-    bl_idname = "retargetor.clear_generated_keys"
+    bl_idname = "interpose.clear_generated_keys"
     bl_label = "Clear Generated Keys"
     bl_options = {'REGISTER', 'UNDO'}
 
@@ -267,9 +267,9 @@ class RTGTR_OT_ClearGeneratedKeys(Operator):
         return {'FINISHED'}
 
 
-class RTGTR_OT_BackendStart(Operator):
+class INTERPOSE_OT_BackendStart(Operator):
     """Start the active backend and load its model, so the first generation doesn't wait for it"""
-    bl_idname = "retargetor.backend_start"
+    bl_idname = "interpose.backend_start"
     bl_label = "Start Model"
 
     def execute(self, context):
@@ -285,9 +285,9 @@ class RTGTR_OT_BackendStart(Operator):
         return {'FINISHED'}
 
 
-class RTGTR_OT_BackendStop(Operator):
+class INTERPOSE_OT_BackendStop(Operator):
     """Stop the active backend's worker and free its memory"""
-    bl_idname = "retargetor.backend_stop"
+    bl_idname = "interpose.backend_stop"
     bl_label = "Stop Model"
 
     @classmethod
@@ -302,13 +302,13 @@ class RTGTR_OT_BackendStop(Operator):
 
 
 classes = (
-    RTGTR_OT_GenerateInbetweens,
-    RTGTR_OT_RegenerateSegment,
-    RTGTR_OT_RangeStartHere,
-    RTGTR_OT_CancelGeneration,
-    RTGTR_OT_ClearGeneratedKeys,
-    RTGTR_OT_BackendStart,
-    RTGTR_OT_BackendStop,
+    INTERPOSE_OT_GenerateInbetweens,
+    INTERPOSE_OT_RegenerateSegment,
+    INTERPOSE_OT_RangeStartHere,
+    INTERPOSE_OT_CancelGeneration,
+    INTERPOSE_OT_ClearGeneratedKeys,
+    INTERPOSE_OT_BackendStart,
+    INTERPOSE_OT_BackendStop,
 )
 
 

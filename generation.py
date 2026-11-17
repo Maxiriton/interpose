@@ -28,7 +28,7 @@ from .preferences import active_backend
 GENERATED = 'GENERATED'
 # Value of the GENERATED item of Keyframe.type, for foreach_get
 _GENERATED_VALUE = bpy.types.Keyframe.bl_rna.properties["type"].enum_items[GENERATED].value
-MODELS_COLLECTION = "Retargetor Models"
+MODELS_COLLECTION = "Interpose Models"
 _BONE_PATH = re.compile(r'^pose\.bones\["((?:[^"\\]|\\.)*)"\]')
 
 
@@ -235,7 +235,7 @@ def generation_range(rig, rig_profile):
     track, else from the first to the last key pose, or its custom range (key poses outside are ignored).
     Raises ValueError if the key poses don't make a range."""
     key_frames = find_key_frames(rig, rig_profile)
-    state = rig.retargetor
+    state = rig.interpose
     if len(state.segments) > 0:
         start, end = state.segments[0].frame_start, state.segments[-1].frame_end
     elif state.range_mode == 'CUSTOM':
@@ -319,7 +319,7 @@ def model_armature(context, rig, backend, skeleton=None):
     """The character's armature for this backend's skeleton. Reused if it was built from that skeleton;
     otherwise rebuilt from `skeleton` (the previous one is deleted). None if it must be built and no skeleton
     is given."""
-    state = rig.retargetor
+    state = rig.interpose
     current = state.model_armature
     if (current is not None and armature_backend(current) == backend.skeleton_id
             and (skeleton is None or armature_skeleton(current) == skeleton)
@@ -479,7 +479,7 @@ def probe_rig_model(context, rig, written, read=(), translated=(), prepare=None,
     try:
         model.probe(context.view_layer, scene, frames, prepare)
     except RigModelError as e:
-        print(f"Retargetor: '{rig.name}' written through Blender's evaluation: {e}")
+        print(f"Interpose: '{rig.name}' written through Blender's evaluation: {e}")
         return None, str(e)
     return model, None
 
@@ -693,7 +693,7 @@ class Chunk:
 
 
 def generation_chunks(state, backend, start, end):
-    """The Chunks of a character's generation (RTGTR_CharacterState): one for a prompt, or for prompt segments with
+    """The Chunks of a character's generation (INTERPOSE_CharacterState): one for a prompt, or for prompt segments with
     a backend generating them in one pass; otherwise one per segment, one after the other, without transition"""
     track = segment_track.read_track(state)
     if not track:
@@ -709,7 +709,7 @@ def generation_chunks(state, backend, start, end):
 
 
 def segment_chunk(state, backend, index, fps):
-    """The Chunk regenerating one prompt segment of a character (RTGTR_CharacterState), and notes about it.
+    """The Chunk regenerating one prompt segment of a character (INTERPOSE_CharacterState), and notes about it.
     With a backend continuing the motion around a range, a neighbour already generated is sent as context (as
     many frames as the backend asks, within the neighbour): the segment joins it, the transition being the
     backend's. A neighbour never generated is left out: the segment starts where the character stands on its first
@@ -843,7 +843,7 @@ class GenerationTask:
         self.start_frame, self.end_frame, self.key_frames = generation_range(rig, self.rig_profile)
         scene = context.scene
         fps = scene.render.fps / scene.render.fps_base
-        state = rig.retargetor
+        state = rig.interpose
         self.segment_count = len(state.segments)
         if segment is not None:
             if not self.segment_count:
@@ -922,13 +922,13 @@ class GenerationTask:
         when it can be edited, used as is on a linked armature). Raises ValueError if none matches."""
         from .profile_operators import apply_detected_profile, describe_source, detect_profile
         armature = rig.data
-        if len(armature.retargetor_profile.roles) > 0:
-            return armature.retargetor_profile.to_core()
+        if len(armature.interpose_profile.roles) > 0:
+            return armature.interpose_profile.to_core()
         source = apply_detected_profile(armature)
         if source:
             self.modified = True
             self.notes.append(f"Rig profile of '{armature.name}': {describe_source(source)}, applied")
-            return armature.retargetor_profile.to_core()
+            return armature.interpose_profile.to_core()
         detected = detect_profile(armature)
         if detected is not None:
             self.notes.append(f"Rig profile of '{armature.name}' (linked): {describe_source(detected[0])}, used")
@@ -981,7 +981,7 @@ class GenerationTask:
 
         if self.stage == GENERATING:
             self.timings["generation"] = self.timings.get("generation", 0.0) + self.job.duration
-            model = rig.retargetor.model_armature
+            model = rig.interpose.model_armature
             skeleton = armature_skeleton(model)
             if model is None or skeleton is None:
                 raise GenerationError("The model's armature was deleted during the generation.")
@@ -1020,7 +1020,7 @@ class GenerationTask:
         if self.chunk_index < len(self.chunks) - 1:
             # The next segment starts from this one's last frame, now written
             self.chunk_index += 1
-            self._send_request(context, rig, rig.retargetor.model_armature)
+            self._send_request(context, rig, rig.interpose.model_armature)
             return False
         if self.ik_writer is not None:
             restore_switches(rig, [saved for saved in self.switches if saved[0].ik_snap], context.view_layer)
@@ -1031,12 +1031,12 @@ class GenerationTask:
             # fix_quaternion_signs may have flipped keys the add-on made (same rotations): still the add-on's
             generated_keys.record_added(rig, self.keys_before)
         if self.segment_count:
-            segment_track.mark_generated(rig.retargetor, self.segment_index)
+            segment_track.mark_generated(rig.interpose, self.segment_index)
         elif self.backend.capabilities.prompt and rig.is_editable:
             # The generation becomes the character's first prompt segment, shown in the timeline: its band is
             # edited and regenerated like the others (the user's request)
             from .core import segments as core_segments
-            state = rig.retargetor
+            state = rig.interpose
             track = core_segments.append([], self.end_frame - self.start_frame + 1, state.prompt, state.seed,
                                          start_frame=self.start_frame)
             segment_track.write_track(state, track, active=0)

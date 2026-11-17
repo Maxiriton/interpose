@@ -1,5 +1,5 @@
 # type: ignore
-"""A character's prompt segments in Blender (object.retargetor.segments), read and written as a core.segments track.
+"""A character's prompt segments in Blender (object.interpose.segments), read and written as a core.segments track.
 
 The segments stay contiguous: editing a start or an end moves the boundary with the neighbour (core.segments),
 within the lengths allowed (MIN_SEGMENT_SECONDS, the active backend's longest motion).
@@ -35,7 +35,7 @@ def length_limits(context):
 
 
 def read_track(state):
-    """The character's segments (RTGTR_CharacterState) as a list of core PromptSegment"""
+    """The character's segments (INTERPOSE_CharacterState) as a list of core PromptSegment"""
     return [PromptSegment(item.frame_start, item.frame_end, item.prompt, item.seed) for item in state.segments]
 
 
@@ -81,7 +81,7 @@ _INDEX = re.compile(r"segments\[(\d+)\]")
 def _owner(item):
     """(character state, index) of a segment item"""
     match = _INDEX.search(item.path_from_id())
-    return item.id_data.retargetor, int(match.group(1))
+    return item.id_data.interpose, int(match.group(1))
 
 
 def _frames_updated(item, context, which):

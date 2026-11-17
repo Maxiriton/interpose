@@ -40,7 +40,7 @@ def _settings_classes():
     return [(b, b.settings_class()) for b in registry.BACKENDS if b.settings_class() is not None]
 
 
-class RTGTR_ModelSetup(PropertyGroup):
+class INTERPOSE_ModelSetup(PropertyGroup):
     """Where a backend's model environment is"""
     environment: EnumProperty(
         name="Environment",
@@ -53,7 +53,7 @@ class RTGTR_ModelSetup(PropertyGroup):
                                        "(for example <venv>/Scripts/python.exe)")
 
 
-class RTGTR_Preferences(AddonPreferences):
+class INTERPOSE_Preferences(AddonPreferences):
     bl_idname = ADDON_ID
 
     backend: EnumProperty(name="Backend", items=backend_items, update=_backend_changed,
@@ -98,7 +98,7 @@ def backend_settings(context, backend):
 
 
 def setup_settings(context, backend):
-    """The backend's environment settings (RTGTR_ModelSetup), or None"""
+    """The backend's environment settings (INTERPOSE_ModelSetup), or None"""
     prefs = get_preferences(context)
     if prefs is None:
         return None
@@ -106,22 +106,22 @@ def setup_settings(context, backend):
 
 
 def register():
-    bpy.utils.register_class(RTGTR_ModelSetup)
+    bpy.utils.register_class(INTERPOSE_ModelSetup)
     for backend, cls in _settings_classes():
         bpy.utils.register_class(cls)
-        RTGTR_Preferences.__annotations__[f"settings_{backend.id}"] = PointerProperty(type=cls)
+        INTERPOSE_Preferences.__annotations__[f"settings_{backend.id}"] = PointerProperty(type=cls)
     for backend in registry.BACKENDS:
         if backend.installable:
-            RTGTR_Preferences.__annotations__[f"setup_{backend.id}"] = PointerProperty(type=RTGTR_ModelSetup)
-    bpy.utils.register_class(RTGTR_Preferences)
+            INTERPOSE_Preferences.__annotations__[f"setup_{backend.id}"] = PointerProperty(type=INTERPOSE_ModelSetup)
+    bpy.utils.register_class(INTERPOSE_Preferences)
 
 
 def unregister():
-    bpy.utils.unregister_class(RTGTR_Preferences)
+    bpy.utils.unregister_class(INTERPOSE_Preferences)
     for backend in registry.BACKENDS:
-        RTGTR_Preferences.__annotations__.pop(f"setup_{backend.id}", None)
+        INTERPOSE_Preferences.__annotations__.pop(f"setup_{backend.id}", None)
     for backend, cls in reversed(_settings_classes()):
-        RTGTR_Preferences.__annotations__.pop(f"settings_{backend.id}", None)
+        INTERPOSE_Preferences.__annotations__.pop(f"settings_{backend.id}", None)
         bpy.utils.unregister_class(cls)
-    bpy.utils.unregister_class(RTGTR_ModelSetup)
+    bpy.utils.unregister_class(INTERPOSE_ModelSetup)
     registry.stop_all()

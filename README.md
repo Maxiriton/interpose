@@ -1,225 +1,206 @@
-# Retargetor
+# Interpose
 
-**Retarget an animation from one armature to another, even when their rest poses don't match, and generate the motion between your key poses with an AI motion model.**
+**Pose your own rig at a few key frames, and an AI motion model generates the movement between them, written back as keys on your rig's own controls.**
 
-Retargetor is a Blender add-on that copies an animation bone by bone from a *source* armature to a *target* armature. It corrects the orientation differences between the two rest poses, scales the root motion to the size of the target, and bakes the result as keyframes on the target.
+Interpose is a Blender extension for animators. You keep your rig, its controls and your key poses; a motion model (NVIDIA's Kimodo or ARDY for now, others can be added) generates the in-betweens from a text prompt ("a person walks forward and waves"), and the result comes back as ordinary keys you can edit. It works with Rigify, Auto-Rig Pro and CloudRig rigs, and with skeletons such as Mixamo characters, without any setup; other rigs are set up once.
 
-It can also **generate in-betweens**: pose your own rig at a few key frames, and a motion model (NVIDIA Kimodo or ARDY for now) generates the movement between them, written back on your rig's controls.
+It also retargets an animation from one armature to another, even when their rest poses don't match.
 
-> **Status:** early version (0.0.1). It works, but expect rough edges. Feedback is welcome.
+> **Status:** 0.1.0, the first public version. Tested on Windows 11 with an NVIDIA RTX 3090. Feedback and bug reports are welcome on the [issues page](https://github.com/Maxiriton/interpose/issues).
 
 ---
 
+- [Features](#features)
+- [Requirements](#requirements)
+- [Installing the extension](#installing-the-extension)
+- [Installing a model](#installing-a-model)
+- [Setting up a rig](#setting-up-a-rig)
+- [Generating the in-betweens](#generating-the-in-betweens)
+- [Prompt segments](#prompt-segments)
+- [Limits](#limits)
+- [Troubleshooting](#troubleshooting)
+- [Retargeting between two armatures](#retargeting-between-two-armatures)
+- [Licences](#licences)
+- [For developers](#for-developers)
+
 ## Features
 
-- **Bone-by-bone matching** with an editable list: pick the target bone for every source bone.
-- **Automatic first guess** of the matching from bone names (exact match first, then partial match; a target bone is never used twice).
-- **Two ways to fix rest pose differences**, selectable per bone:
-  - **Roll**: compensates the rotation around the target bone's Y axis.
-  - **Offset**: compensates the full rotation difference between the two rest poses.
-- **Manual corrections**: pose a bone by hand and record the difference, for the cases where the automatic offsets aren't enough.
-- **Translation on demand**: only the bones you flag with **Use Translation** copy the source's movement (typically `Root` and `Hips`).
-- **Translation scale**: the root motion is scaled by the size ratio between the two rigs, so a small character doesn't slide like a giant one.
-- **Smooth rotations**: quaternion signs are kept continuous from frame to frame, so bones never spin the long way round between two keyframes.
-- **Import / export** of the matching as JSON, to reuse a setup on other scenes.
-- **Several characters per scene**: each target armature keeps its own setup.
-- **Rig setup**: a rig is mapped once to humanoid roles (hips, upper arm, shin...), with a bone to read and a control to write for each. Rigify, Auto-Rig Pro and CloudRig rigs and skeletons (Mixamo, Unreal, SMPL...) set themselves up; others are set up by picking their bones, and **Check Rig** tests what the controls do.
-- **Generate**: the motion between your key poses, from a motion model running in its own process (Blender never freezes, and never loads the model itself). Your keys are never overwritten; the result comes as **Generated** keys. See [ROADMAP.md](ROADMAP.md) for what comes next.
-- **Prompt segments**: a track of prompts per character, one after the other, shown as bands in the Dope Sheet, the Timeline and the Graph Editor, and edited with the mouse like NLA strips; the whole track is generated at once, with the model's own transitions between the segments, or one segment is regenerated alone, joining the motion around it.
+- **Generate in-betweens** from your key poses and a text prompt, with a motion model running in its own process: Blender never freezes and never loads the model itself. Your keys are never overwritten; the result comes as **Generated** keys, and a generated key you edit becomes yours.
+- **Your own rig**: the motion is written on your rig's controls. Limbs you posed in IK stay in IK: their IK controls follow the generated motion.
+- **Any key poses**: two or more, one, or none at all (the prompt alone). A key pose can be partial: key only a hand, and the rest of the body is generated around it.
+- **Prompt segments**: a track of prompts per character ("walks forward" for 3 s, then "turns and waves"...), drawn as bands in the Dope Sheet, the Timeline and the Graph Editor, edited with the mouse like NLA strips. Generate the whole track with the model's own transitions, or regenerate one segment alone.
+- **Rig setup**: Rigify, Auto-Rig Pro and CloudRig rigs and skeletons (Mixamo, Unreal, SMPL, VRM, Daz, Character Creator...) set themselves up. Others are set up by picking their bones, and **Check Rig** tests what the controls really do.
+- **Models installed for you**: the add-on installs a model (its Python, its packages, its weights) from its preferences, and checks the setup with a clear fix for each problem.
+- **Several characters per scene**, each with its own prompt, segments and settings.
+- **Retargeting** between two armatures with different rest poses, bone by bone.
 
 ## Requirements
 
-- Blender **5.2** or newer.
-- To generate with Kimodo: an NVIDIA GPU (about 7 GB of video memory) and about 12 GB of disk. With ARDY: an NVIDIA GPU with about 10 GB of video memory and about 15 GB of disk (its text encoder in 8 bits, the default; 6 GB with the 4-bit one; 17 GB, 23 GB of disk and access to Meta's Llama 3 on Hugging Face with the full one), and Visual Studio's C++ build tools on Windows (a C++ compiler elsewhere) for its post-processing. The add-on installs both itself (see [Models](#models)); Blender's **Allow Online Access** (Preferences > System > Network) must be on for the install.
+- **Blender 5.2** or newer.
+- **To generate**: an **NVIDIA GPU** with enough video memory, and disk space for the model. macOS can't generate (no NVIDIA GPUs); Linux should work but isn't tested yet. The retargeting and the rig setup work everywhere.
 
-## Installation
+| Model | Video memory | Disk | Also needs |
+|---|---|---|---|
+| **Kimodo** | about 7 GB | about 12 GB | |
+| **ARDY**, 8-bit text encoder (the default) | about 10 GB | about 15 GB | Visual Studio's C++ build tools on Windows (a C++ compiler elsewhere) for its post-processing; optional |
+| **ARDY**, 4-bit text encoder | about 6 GB | about 12 GB | the same |
+| **ARDY**, full text encoder | about 17 GB | about 23 GB | access to Meta's Llama 3 on Hugging Face |
 
-1. Zip the add-on folder (the folder containing `__init__.py` and `blender_manifest.toml`).
-2. In Blender, open **Edit > Preferences > Get Extensions**, then use **Install from Disk** (the dropdown arrow in the top right) and choose the zip.
-3. Enable **Retargetor**.
+- An internet connection for the install, and Blender's **Allow Online Access** on (**Edit > Preferences > System > Network**).
 
-The panel appears in the 3D Viewport sidebar (press `N`), in the **Retarget Tool** tab.
+## Installing the extension
 
-## Quick start
+1. Download `interpose-<version>.zip` from the [Releases page](https://github.com/Maxiriton/interpose/releases). Don't unzip it.
+2. In Blender, open **Edit > Preferences > Get Extensions**, click the arrow in the top right corner, then **Install from Disk...**, and choose the zip.
+3. Interpose is enabled. Its panels are in the 3D Viewport's sidebar (press `N`), in the **Interpose** tab; the animation editors' headers get its buttons too.
 
-1. **Choose the armatures.** Set **Target** (the armature that should receive the animation), then **Source** (the one that holds it). The setup is stored on the target object, so each character of the scene keeps its own; switching **Target** switches the setup shown in the panel.
-2. **Build the bone list.** Click **Setup Bone list**, or **Import from JSON** if you already have a setup. Retargetor lists every source bone and proposes a target bone by name.
-3. **Review the matching.** For every row:
-   - set the target bone (leave it empty to ignore a source bone),
-   - choose **Roll** or **Offset** for the rest pose correction,
-   - switch on the translation button for the bones that carry the root motion.
-4. **Check the translation scale.** Click **Auto** next to **Translation Scale** to compute it, or type your own value.
-5. **Retarget.** Click **Retarget**. The animation is baked on the target over the scene's frame range (**Start** to **End**).
+To update, install the new zip the same way. Your models stay installed.
 
-## The bone list
+## Installing a model
 
-Each row shows, from left to right:
+The models aren't part of the extension: the add-on installs the one you choose, on your request, from its official sources. Open **Edit > Preferences > Add-ons > Interpose**. Each model is listed with what it supports (text prompt, key poses, prompt segments, longest motion...).
 
-| Column | Meaning |
-|---|---|
-| Source bone | A check mark means the offsets were computed for this pair. |
-| Target bone | Searchable field. Empty means the source bone is ignored. |
-| Translation button | When on, the bone also copies the source's movement. |
-| Offset mode | **Roll** or **Offset** (see below). |
-| Record button | **Record Correction**, **Update Record** or **Finish Recording**. |
+1. Click **Install** on a model. A dialog shows what it downloads, from where, how much, and the licences: read them, they apply to you (see [Licences](#licences)). Confirm.
+2. The install runs in the background with its progress, a few minutes for several GB: its own Python and environment (with [uv](https://github.com/astral-sh/uv), downloaded once), its packages (the right PyTorch build for your GPU), its weights. **Cancel** stops it; **Resume Install** goes on where it stopped, after a failure too.
+3. **Check Setup** says what is ready and what isn't, each problem with its fix: the environment, the packages, the GPU (PyTorch can use it, enough video memory), the weights.
+4. Choose the model to use with **Use** (or **Backend**). One model is loaded on the GPU at a time.
 
-Selecting a bone in Pose Mode (on either armature) selects the matching row in the list.
+Where things go:
 
-### Roll vs Offset
+- **Models Folder**: where the environments go. Empty: `%LOCALAPPDATA%\Interpose` on Windows, `~/.local/share/interpose` on Linux. Choose another drive if yours is short of space.
+- Weights from Hugging Face go to its usual cache (`~/.cache/huggingface`), shared with your other tools: weights already there aren't downloaded again.
+- **Existing Environment**: use a Python environment where the model is installed already (its Python executable), instead of installing it.
+- **Remove** (the bin) deletes the model's environment and the weights installed with it; its weights in the Hugging Face cache too if you tick it, unless another model needs them. **Repair** makes the environment again and completes the weights.
 
-- **Roll** fixes the case where the two bones point the same way but are twisted differently around their own axis.
-- **Offset** applies the full rotation between the two rest poses. Try it when Roll isn't enough.
+**Gated weights (Hugging Face sign-in).** Kimodo and ARDY's default text encoder need no account. Only ARDY's **Full** text encoder uses Meta's Llama 3 8B Instruct as Meta publishes it, which you must ask access to:
 
-Both are computed from the rest poses of the two armatures each time you snap or retarget, so they are always up to date.
+1. Make a Hugging Face account and request access on [Llama 3's page](https://huggingface.co/meta-llama/Meta-Llama-3-8B-Instruct) (**Request Access** in the check opens it), and wait for it to be granted.
+2. Click **Sign In**: a terminal opens running Hugging Face's own sign-in. Sign in there yourself (from the browser, or with a token you paste there).
+3. **Install** again.
 
-### Recording a correction
+The add-on never asks for, reads, stores or sends your token: Hugging Face's library uses your sign-in by itself.
 
-When an automatic offset is almost right but not quite:
+**The models:**
 
-1. Select the row and click **Record Correction**. The target bone is selected in Pose Mode.
-2. Rotate the bone by hand until it looks right.
-3. Click **Finish Recording**.
+- **Kimodo** (NVIDIA): generates up to 10 s per prompt, at 30 fps. Installed from [Aero-Ex's fork](https://github.com/Aero-Ex/kimodo), which runs on Windows without a compiler and comes with a 4-bit text encoder (about 5 GB of video memory instead of 17, no gated weights). **Model**: **SOMA, v1.1** (the default) or **SOMA, v1**.
+- **ARDY** (NVIDIA): generates window by window (2 s at a time), with no length limit, about a second for 5 s once loaded. **Model**: **SOMA, 30 fps** or **Core, 20 fps** (its own 27-joint skeleton). **Text Encoder**: **8-bit** (the default: 8 GB of video memory, loads in a few seconds), **4-bit** (4.7 GB, the motion a little further from the full one's) or **Full** (about 15 GB, a minute to load, gated). Without a C++ compiler it installs without its post-processing, and follows the key poses less exactly: install Visual Studio's C++ build tools (the "Desktop development with C++" workload), then **Repair**.
+- After changing a model's setting, or updating the add-on, the header may say **Weights missing** or **Packages missing**: **Install** gets them (seconds when the weights are already there).
 
-The difference is stored and applied on top of the automatic offset. **Update Record** adds a new correction to the existing one, and the **X** button clears it. Changing a row's target bone also clears its correction, since it no longer applies.
+## Setting up a rig
 
-## Translation and scale
+Choose your character as the **Target** at the top of the **Retarget** panel (Interpose tab). That's all for most rigs: as soon as it is chosen, its **rig profile** is set up (the Generate panel says how).
 
-By default, every bone only receives a **rotation**. For the root motion to come through, switch on the translation button of the bones that should move through space, usually `Root` and `Hips`.
+- **Recognized rigs**: **Rigify**, **Auto-Rig Pro** and **CloudRig** get their preset, with their FK controls, IK/FK switches and IK snap.
+- **Skeletons** animated directly, without controls (Mixamo, Unreal's mannequin, SMPL, VRM, Daz, Character Creator, a mocap or BVH import...), are recognized from their bone names and hierarchy. An FBX import standing Y-up, or a skeleton facing +Y, is fine.
+- **Other rigs**: the **Rig Setup** panel maps the rig to humanoid roles (hips, spine, head, upper arm, forearm, hand, thigh, shin, foot...). **Detect Bones** finds what it can; pick a role's bone in the viewport (Pose Mode) and click the role's **eyedropper** for the rest. Required roles: hips, at least one spine bone, head, upper arms, forearms, hands, thighs, shins and feet. The roles are listed by body part, each one found, missing or optional.
+  - **Separate Controls**, on a controller rig: each role has a bone to **read** (on Rigify, the `ORG-` bone, the result of FK and IK) and a control to **write** (on Rigify, the FK control).
+  - **IK/FK Limbs** (sub-panel): for each limb, its FK controls, its IK/FK switch property, and how each IK control follows the generated motion (**IK snap**: **Follow** a bone, **Pole** in the limb's plane, **Rest**). A limb without IK snap stays in FK after generating. **Snap FK to IK** snaps the FK controls onto the IK pose on frames you list.
+  - **Advanced** (sub-panel): per role, Use Translation and the offset mode (**Roll** copies the bone's direction: arms and legs; **Offset** the rotation from rest: spine, neck, head, feet).
+  - The menu next to **Check Rig**: **Load Preset**, **Import Profile** / **Export Profile** (JSON, to reuse a profile on a similar rig), **Add Roles**.
+- **Check Rig** tests the profile from the rig's rest pose: each written control is turned (its read bone must turn with it), each IK/FK limb is switched both ways (it must stay where it was). The pose is put back and nothing is keyed. Problems are listed in the panel; **Generate** runs the check itself the first time a profile is used, and an error stops it.
+- The profile is stored on the armature data: objects sharing the armature share it, and it travels with a rig linked from a library. Set it up in the rig's own file; in a shot that links the rig, it is read-only (to change it in one shot only, override the armature data too: `rig.data = rig.data.override_create(remap_local_usages=True)`).
 
-For these bones, the target position is:
+## Generating the in-betweens
 
-```
-target = target rest position + scale × (source position − source rest position)
-```
+1. **Choose the character** as the **Target** (see above).
+2. **Key your poses** with the rig's controls. Any keyframe type works except **Generated**: Keyframe, Breakdown, Extreme... A frame is a key pose as soon as one of the profile's controls has a key there.
+3. In the **Generate** panel (or the animation editors' header), write a **prompt**, what the character does ("A person walks forward and waves"), and choose a **seed**.
+4. Click **Generate**. The panel and the status bar show the progress: the model's own steps, then the keys being written. **Esc** or the cancel button stops it, until the keys are being written (a few seconds; Blender stays responsive, you can look around but not edit).
 
-The target keeps its own standing height, and only the *movement* is scaled.
+The result is written on the rig's controls as **Generated** keys, on every frame between your first and last key pose. The generation becomes **prompt segment 1**, shown as a band in the timeline. Frames carrying one of your keys are never written; generating again replaces the Generated keys and keeps yours. The whole generation is one undo step.
 
-**Auto** computes the scale as the ratio of the heights of the two rigs, measured on the bones that are matched (Z extent of the bone heads in rest pose, in world space). Check the heights it reports: if they look wrong, enter the scale by hand. The scale is **not** saved in the JSON, because it depends on the two rigs of the current scene.
+The first generation starts the model (about 20 s; the header says **Starting**, then **Loading**). The model then stays loaded: the next generations take about 3 s with Kimodo and under a second with ARDY, plus the time to write the keys (on Rigify about 1 s for 120 frames, and as much again for the limbs in IK; more on a character whose meshes are heavy to deform). **Start** / **Stop** load the model ahead of time, or free the GPU.
 
-## Snapping tools
+- **Range**: **Key Poses** (the default) goes from the first key pose to the last one. **Custom** sets a start frame and a duration: generate from the **prompt alone** with no key pose (the motion starts where the character stands on the start frame, facing where it faces; on Rigify move or turn the **root** control), start from **one key pose** or end on one, or **extend** an animation past its last key pose. Key poses outside the range are ignored and never touched.
+- **Limbs in IK** stay in IK. The motion is written to the FK controls: on each key pose the FK controls of a limb in IK are snapped to its IK pose first (keyed as normal keys), then its IK controls (hand, foot, pole...) follow the generated motion on every frame, as Generated keys, and the IK/FK switch goes back to what you left. Pose the limb in IK anywhere, and that frame is a key pose for the next generation. Your IK keys are kept.
+- **Partial key poses**: a frame where you keyed only some controls (an arm, a foot...) pins only what you keyed: the hand or foot lands where your pose puts it (and the hips, always pinned on a constrained frame); keying the spine, the neck or the head pins the whole body. The rest of that frame is generated, and your keys stay as they are. Your keys are FK rotations, so if the generated body moves a lot there, the hand can land away from where you posed it: key the body as well to keep the whole pose.
+- **Editing a Generated key makes it yours**: as soon as you change a generated key (move it, or key over it after posing the rig), it becomes a **Keyframe**, and the next generation uses it as a key pose. Cancel the move (right click) and it goes back to Generated. **Key > Keyframe Type** promotes a key without changing it.
+- **Clear Generated Keys** (Generate panel, Interpose menu) removes what the add-on put on the character: its Generated keys, and the keys it made on your key poses (FK controls snapped to your IK pose, IK controls, an IK/FK switch keyed in FK), even on protected bone collections. A key it made that you changed since is yours, and stays. A control left without keys goes back to its rest pose. One undo step.
+- Other scene frame rates than the model's are handled: the key poses land exactly on the model's frames and the result is resampled. A character facing any direction, anywhere in the scene, works.
+- The model's skeleton is added to the scene as a hidden armature, in an **Interpose Models** collection, next to your character.
 
-Useful to tune the setup before baking:
+## Prompt segments
 
-- **Snap active bone** aligns the active target bone to its source at the current frame.
-- **Snap full pose** aligns every matched bone at the current frame.
+A character can follow several prompts one after the other: "walks forward" for 3 s, then "turns left and waves" for 2 s... Each **segment** has a start, an end, a prompt and a seed. Segments follow each other with no gap, like a track; your key poses stay constraints inside them.
 
-Both work in Pose Mode on the target armature.
+- **The first generation makes segment 1**; **Add Prompt Segment** (the **+** in the Generate panel) makes it too before generating, and adds the next ones at the end of the track (2 s, no prompt yet). The panel shows the **active** segment (its prompt, seed, start and end); the arrows go to the previous or next one; **−** removes it (the one before takes its frames); the split button cuts the segment under the current frame in two.
+- **The bands** at the bottom of the **Dope Sheet**, the **Timeline** and the **Graph Editor** show the panel's character, then the other selected characters with segments. A band shows each prompt, its frames and seed, your key poses (small diamonds) and the transitions. A hatched segment hasn't been generated, or was edited since. **View > Show Prompt Segments** (or the eye in the header) hides them.
+- **With the mouse**, like NLA strips: **click** a segment to make it active (a click on a name makes that character the panel's), **drag** a boundary to move it (the neighbour adapts) or drag a segment to move both its boundaries; **Esc** or a right click cancels. **Double click** opens the segment's prompt, seed and frames; **right click** opens its menu: Edit, Split at Current Frame, Add, Remove, Regenerate Segment, Generate Whole Track. **+** after the track adds a segment. Each change is one undo step.
+- **The animation editors' header** shows the model's state (with a start button when it isn't loaded) and **Generate**, or the progress bar and its cancel button while generating. The **Interpose** menu next to it has the rest: generate, regenerate the active segment, edit, add, split or remove a segment, Clear Generated Keys, start or stop the model, its errors, the preferences.
+- **Generate** in the header (or **Generate Whole Track**) generates the whole track at once, with the model's own transitions between the segments. Kimodo generates up to 10 s per segment, the track can be longer; ARDY changes prompt at each boundary, with no length limit. Each segment lasts 0.5 s at least.
+- **Regenerate Segment** (the segment's menu, its popup, the Interpose menu, the Generate panel) generates one segment again, with its own prompt and seed, and leaves the rest of the track as it is: only the segment's frames get new Generated keys, one undo step. The model joins the motion around it, so there is no jump at its boundaries. A neighbour never generated (hatched) isn't joined: generate it afterwards, or the whole track. To regenerate between two key poses, split the track there first.
 
-## JSON setups
+## Limits
 
-**Export to JSON** saves the whole list: bone names, offset modes, translation flags and recorded corrections. **Import from JSON** loads it back onto the current target, and recomputes the translation scale if the source is set.
+- **Fingers are not generated.** Kimodo and ARDY animate SOMA's 30-joint body; the fingers of their 77-joint output are a fixed relaxed pose. The add-on doesn't map fingers, so they keep your own animation (key them as you like, before or after generating).
+- **NVIDIA GPUs only** for generating, Windows tested, Linux not yet; no macOS.
+- **Humanoid characters only**: two arms, two legs, a spine and a head. Quadrupeds and props aren't generated.
+- **Limbs posed in IK only**, with no FK control to write and no IK/FK switch (some older hand-made rigs), aren't supported: **Check Rig** names them.
+- **Rigify's IK limbs are a little shorter than its FK ones**, so in IK the elbows and knees can sit 1 or 2 cm from the generated motion, and a knee doesn't fully straighten (where the generated leg straightens, it stays bent a few cm and can pop forward). Hands and feet follow the motion.
+- Kimodo generates at most **10 s per prompt** (per segment with prompt segments).
+- **One model on the GPU at a time**: choosing another one stops the previous one.
+- The keys can't be written faster than Blender evaluates the rig on each frame: on a character with heavy meshes, writing takes longer than generating.
 
-Files exported by older versions can still be imported. Missing fields fall back to safe defaults (no translation, no correction); the rest offsets they contain are ignored, since they are computed from the rigs.
+## Troubleshooting
 
-## Files made with older versions
+- **The header says "not set up", "Weights missing" or "Packages missing"**: open the preferences, **Check Setup**, and follow the fix shown for each problem (usually **Install** or **Repair**).
+- **The install fails right away**: Blender's **Allow Online Access** must be on (Preferences > System > Network). Look at the install log (the log button next to the model); **Resume Install** goes on where it stopped.
+- **The check says a gated repository needs access, or that the sign-in expired**: request access on the repository's page, then **Sign In** (see [Installing a model](#installing-a-model)), then **Install** again.
+- **Not enough video memory**: close other applications using the GPU, stop the other model, use ARDY's 8-bit or 4-bit text encoder, or Kimodo.
+- **The check says PyTorch can't use the GPU**: update the NVIDIA driver. An RTX 50 series GPU gets a PyTorch build for it (CUDA 12.8) at the install; after changing the GPU, **Repair**.
+- **Generate says the rig has a problem**: the Rig Setup panel lists what **Check Rig** found, each with its role. Fix the profile, or the rig, and run **Check Rig** again.
+- **The character doesn't move, or only some limbs move**: check that the profile's roles are found (Rig Setup panel) and that your key poses are on the profile's controls. On Rigify, a limb in IK whose IK/FK switch is animated between key poses needs a key pose on the frames where it switches.
+- **A pose came out wrong on one frame**: key that frame yourself (it becomes a key pose), or regenerate the segment with another seed.
+- **The model doesn't start**: the Interpose menu in the animation editors shows its last errors; the console (Window > Toggle System Console on Windows) has the details. Please include them in a bug report.
 
-Older versions stored the setup on the scene (one per scene). When such a file is opened, the setup is moved onto its target armature object automatically, and the scene's **Target** is set to it. The setup is left on the scene, and a message is printed in the console, when it can't be moved: no target armature, a linked target, or a target that already has a bone list. In that case, open the file with the old version, **Export to JSON**, then open it with this version and **Import from JSON** on the target.
+## Retargeting between two armatures
 
-## Rig setup
+The **Retarget** panel copies an animation bone by bone from a *source* armature to a *target* armature, correcting the orientation differences between their rest poses and scaling the root motion to the target's size, and bakes it as keys on the target.
 
-The **Rig Setup** panel (same tab) describes how the **active armature** maps to humanoid roles: its rig profile. It is stored on the armature data, so every object using that armature shares it, and it travels with a rig linked from a library. Most rigs set themselves up: choosing the character as the **Target** is enough.
+1. **Choose the armatures**: **Target** (the one that receives the animation), then **Source** (the one that holds it). The setup is stored on the target object, so each character keeps its own.
+2. **Build the bone list**: **Set Up Bone List** lists every source bone and proposes a target bone by name (exact match first, then partial; a target bone is never used twice). Or **Import from JSON**.
+3. **Review each row**: the target bone (empty: the source bone is ignored); **Roll** (the bones point the same way but twist differently) or **Offset** (the full rotation between the rest poses); the translation button for the bones carrying the root motion (usually `Root` and `Hips`).
+4. **Translation Scale**: **Auto** computes the ratio of the two rigs' heights (check the heights it reports), or type your own.
+5. **Retarget** bakes the animation on the target over the scene's frame range.
 
-- **Rigs recognized**: **Rigify**, **Auto-Rig Pro** and **CloudRig** rigs get their preset (with their FK controls, IK/FK switches and IK snap). A **skeleton** animated directly, without controls (Mixamo, Unreal's mannequin, SMPL, VRM, Daz, Character Creator, a mocap or BVH import...), is recognized from its bone names and hierarchy: each role's bone is read and written. Both are applied as soon as the character is chosen (or when it generates), when every required role is found.
-- **Detect Bones** does it on request, and keeps what it found on an incomplete skeleton. The roles are listed by body part; each one shows whether it is found (check), missing and required (error) or optional and missing. Pick a role's bone in the viewport (Pose Mode) and click the **eyedropper** of the role; the select button selects the role's bones to see them, the cross takes the role out. Required roles: hips, at least one spine bone, head, upper arms, forearms, hands, thighs, shins and feet.
-- **Separate Controls**: on a controller rig, each role has a bone to **read** (on Rigify, the `ORG-` bone, the result of FK and IK) and a control to **write** (on Rigify, the FK control; empty means the role isn't written). Off, for a skeleton: one bone per role, read and written.
-- **Check Rig** checks the profile: the bones of each role, then what the controls really do, from the rig's rest pose. Each control written is turned, and its read bone must turn with it; each IK/FK limb is posed in FK, its IK controls snapped and the limb switched to IK, then back: it must stay where it was. The pose is put back and nothing is keyed. The problems are listed in the panel; an error stops **Generate**, which runs the check itself the first time a profile is used. Only problems are reported: a rig whose IK chain is a little shorter than its FK one (Rigify) is fine.
-- **IK/FK Limbs** (sub-panel): for each limb, the FK controls and the bone each one follows, and the IK/FK switch property. **Snap FK to IK** rotates the FK controls onto the current pose on the frames you list (for example `1, 61, 120`, or empty for the current frame), keys them, and switches the limbs to FK. IK keys are kept. **IK snap** (in order): how each IK control follows the generated motion, so the limb plays in IK after generating. **Follow** takes the transform of a bone (with the offset of their rest poses), **Pole** places a pole target in the plane of the limb, **Rest** resets the control. The presets fill it; a limb without it stays in FK after generating.
-- **Advanced** (sub-panel): per role, Use Translation and the offset mode. Arms and legs default to **Roll** (the direction of the bone is copied), the spine, neck, head and feet to **Offset** (the rotation from rest: a foot bone slopes differently from rig to rig, but every rig stands with its feet flat at rest).
-- The menu next to **Check Rig**: **Load Preset**, **Import Profile** / **Export Profile** (JSON, to reuse a profile on a similar rig), **Add Roles** (every role, empty).
-- A rig standing with its bones Y-up (an FBX import) or facing +Y (SMPL) is fine: the model's skeleton stands like the rig.
-- Not supported yet: **limbs posed in IK only**, whose bones only an IK constraint can pose, with no FK control to write and no IK/FK switch (some older hand-made rigs, such as the 2006 Proog of Elephants Dream: its legs, its feet hanging from the root). **Check Rig** says so. A chain whose IK constraints are turned off by their influence can be used in FK, but the add-on doesn't switch such constraints itself.
+- **Record Correction**: when an offset is almost right, select the row, click it, rotate the target bone by hand, then **Finish Recording**: the difference is applied on top. **Update Correction** adds to it, **X** clears it.
+- **Snap Active Bone** / **Snap Full Pose** align the target to the source on the current frame, to tune the setup before baking (Pose Mode).
+- **Export to JSON** / **Import from JSON** save and load the bone list (names, offset modes, translation, corrections). The translation scale isn't saved: it depends on the two rigs.
+- With a Rigify target, match the **FK** controls and set the limbs to FK.
+- Retargeting scales the root motion, but can't remove foot sliding between legs of very different proportions.
+- Files saved by older versions (one setup per scene) are moved onto their target armature when opened. Files saved when the add-on was called **Retargetor** are brought up to date when opened (save them again with Interpose); a rig linked from a library gets it when its own file is opened and saved.
 
-### Linked rigs and library overrides
+## Licences
 
-Set the profile up in the rig's own file. In a shot file that links the rig, the profile is read-only. A library override of the character overrides the object (so the per-character setup in the Retarget panel can be edited and is saved) but **not the armature data**, even with a fully editable override: the profile stays the library's, and edits made there would not be saved. To change the profile in a shot only, override the armature data too (from Python: `rig.data = rig.data.override_create(remap_local_usages=True)`; the Outliner's **Library Override > Make** on the armature data should do the same). Values you change then win over the library, and the others still follow it.
+**Interpose** is free software under the [GNU General Public License, version 3 or later](LICENSE) (GPL-3.0-or-later).
 
-## Generate in-betweens
+**The extension contains no model and no weights.** When you click **Install**, it downloads them on your machine from their official sources, and **each one comes with its own licence, which applies to you** as its user; the install dialog lists them with their links. In short (this is not legal advice; read the licences themselves):
 
-1. **Choose the character** as **Target** in the Retarget panel. A **Rigify**, **Auto-Rig Pro** or **CloudRig** rig, or a skeleton such as a Mixamo character, needs nothing else: its rig profile is set up as soon as you choose it (the Generate panel says how). For another rig, set it up in the Rig Setup panel.
-2. **Key your poses** on the controls of the profile (on Rigify, the FK or IK controls and the torso). Any keyframe type works except **Generated**: Keyframe, Breakdown, Extreme... A frame is a key pose as soon as one of those controls has a key on it.
-3. **Limbs in IK** are handled for you, and stay in IK: the generated motion is written to the FK controls, so before generating, the FK controls of a limb in IK are snapped to its IK pose on each key pose (keyed as normal keys), and the limb is in FK while generating. Then its IK controls (hand, foot, pole, toe...) are snapped to the generated motion on every frame, as Generated keys, and the IK/FK switch goes back to what you left (animated or not). The limb plays the motion in IK: pose it in IK anywhere, and the edited frame is a key pose for the next generation. Your IK keys are kept, and on the key poses the IK controls are keyed as they are. On Rigify the IK arm and leg are a little shorter than the FK ones, so the elbows and knees can sit up to 1 or 2 cm from the FK motion, and an IK knee doesn't fully straighten (where the generated leg straightens, it stays bent a few cm and can pop forward); hands and feet follow the motion. A limb whose rig profile has no IK snap stays in FK after generating; for such a limb, a switch key in IK between two key poses stops the generation (key the switch in FK there, or key a pose on that frame).
-4. In the **Generate** panel, write a **prompt** (what the character does) and choose a **seed**, then click **Generate** (it becomes prompt segment 1, shown in the timeline; from then on the segment's **Regenerate Segment** button, or **Generate** in the timeline's header for the whole track). The panel and the status bar show the progress: the model's own steps, then the keys being written onto the rig. **Esc** (or the cancel button) stops the generation until the keys are being written; writing takes a few seconds and can't be stopped (Blender stays responsive meanwhile, you can look around but not edit).
+| Component | Source | Licence |
+|---|---|---|
+| Kimodo code | [nv-tlabs/kimodo](https://github.com/nv-tlabs/kimodo), installed from [Aero-Ex's fork](https://github.com/Aero-Ex/kimodo) | Apache-2.0 |
+| Kimodo weights (SOMA-RP v1, v1.1) | [NVIDIA on Hugging Face](https://huggingface.co/nvidia/Kimodo-SOMA-RP-v1.1) | [NVIDIA Open Model License](https://www.nvidia.com/en-us/agreements/enterprise-software/nvidia-open-model-license/) |
+| ARDY code | [nv-tlabs/ardy](https://github.com/nv-tlabs/ardy) | Apache-2.0 |
+| ARDY checkpoints (SOMA, Core) | NVIDIA on Hugging Face | [NVIDIA Open Model License](https://www.nvidia.com/en-us/agreements/enterprise-software/nvidia-open-model-license/) |
+| Text encoders: LLM2Vec on Meta Llama 3 8B Instruct, and its 4-bit and 8-bit builds (Aero-Ex, voxta) | [Meta](https://huggingface.co/meta-llama/Meta-Llama-3-8B-Instruct), [McGill-NLP](https://huggingface.co/McGill-NLP/LLM2Vec-Meta-Llama-3-8B-Instruct-mntp), Hugging Face | [Meta Llama 3 Community License](https://huggingface.co/meta-llama/Meta-Llama-3-8B-Instruct/blob/main/LICENSE) and Meta's Acceptable Use Policy |
+| uv (installs the models' Python and packages) | [astral-sh/uv](https://github.com/astral-sh/uv), from PyPI | MIT or Apache-2.0 |
+| PyTorch and the other Python packages | PyPI, PyTorch's index | their own licences (BSD, MIT, Apache-2.0...) |
 
-The model generates the motion from your first key pose to your last one. The result is written on the rig's controls as **Generated** keys, on every frame between the key poses.
+What this means:
 
-**Range**: **Key Poses** (the default) goes from the first key pose to the last one. **Custom** sets a start frame (the current frame when you switch to Custom, or the clock button) and a duration: the panel shows the frames, the seconds and the key poses inside. Key poses outside the range are ignored (and never touched). With a custom range you can:
+- **NVIDIA Open Model License**: the models can be used commercially; NVIDIA claims no ownership of the motions you generate, and you are responsible for how you use them. Bypassing a model's safety mechanisms ends the licence. Kimodo's SMPL-X variant, under NVIDIA's research-only licence, is not used.
+- **Meta Llama 3 Community License**: commercial use is allowed (a company with more than 700 million monthly users needs Meta's agreement); its Acceptable Use Policy applies; Llama 3 and its outputs can't be used to improve another large language model. Here it only turns your prompt into the model's text features.
+- The motions you generate are yours to use, within those licences.
 
-- generate from the **prompt alone**, with no key pose: the motion starts where the character stands on the start frame, facing where it faces (on Rigify, move or turn the **root** control: it isn't a control of the profile, so it doesn't make a key pose);
-- start from **one key pose**, or end on one: the motion starts where the character stands on the start frame, so to walk up to a key pose, place the root where the walk starts;
-- **extend** an animation past its last key pose.
+**Built with Meta Llama 3.**
 
-**Partial poses**: a frame where you keyed only some controls (an arm, a foot...) is a partial key pose. With Kimodo and ARDY it pins only what you keyed: a hand or a foot where your pose puts it (and the hips, which they always pin on a constrained frame); keying the spine, the neck or the head pins the whole body. The rest of that frame is generated, and your keys stay as they are. Since your keys are FK rotations, the keyed limb follows the generated body on that frame: if the body moves a lot there, the hand or foot lands away from where you posed it. Key the body as well to keep the whole pose.
+## For developers
 
-Kimodo needs no key pose and generates up to 10 s (per segment with [prompt segments](#prompt-segments)); the panel says when the range is too long, or has fewer key poses than the backend needs (the interpolation test backend needs two). Frames carrying one of your keys are never written. Generating again replaces the Generated keys of the range and keeps yours. The whole generation is one undo step.
+The add-on's code is plain Python; the models run in worker processes with their own Python and talk to Blender over JSON lines, so a new model is a folder in `backends/` (see `backends/base.py`). [CLAUDE.md](CLAUDE.md) describes each file and the architecture rules, [ROADMAP.md](ROADMAP.md) the phases and decisions, [DESIGN.md](DESIGN.md) the data model.
 
-- **Clear Generated Keys** (under Generate) removes what the add-on put on the character: its Generated keys, and the keys it made on the key poses (FK controls snapped to your IK pose, IK controls, an IK/FK switch keyed in FK), even on bones hidden in protected bone collections. A key it made that you changed since is yours, and stays. Your own keys stay, and a control left without any key goes back to its rest pose. One undo step.
-- The first generation starts the model and its text encoder (about 20 s with Kimodo or ARDY, a minute with ARDY's full text encoder; the header says **Starting**, then **Loading**); the model then stays loaded, and the next ones take about 3 s with Kimodo, under a second with ARDY, plus the time to write the keys (on Rigify about 1 s for 120 frames, and as much again to snap the IK controls of limbs in IK; more on a character whose meshes are heavy to deform). **Start** / **Stop** in the panel load the model ahead of time, or free its memory.
-- The model's skeleton is added to the scene as a hidden armature, in a **Retargetor Models** collection, next to your character.
-- Kimodo works at 30 fps and up to 10 s per prompt; other scene rates are handled (the key poses land exactly on the model's frames, the result is resampled to the scene's rate). A character facing any direction works.
-- **Editing a Generated key makes it yours**: as soon as you change a generated key (move it in the Graph Editor or the Dope Sheet, or key over it after posing the rig), it becomes a **Keyframe**, with the other channels of the same property on that frame, so the next generation keeps it and uses it as a key pose. Cancel the move (right click) and it goes back to Generated. You can also promote a generated key without changing it: **Key > Keyframe Type**.
-
-### Prompt segments
-
-A character can follow several prompts, one after the other: "walks forward" for 3 s, then "turns left and waves" for 2 s... Each **segment** has a start, an end, a prompt and a seed. The segments of a character follow each other with no gap, like a track: each one starts on the frame after the previous one ends, so the motion is always defined. Your key poses stay constraints inside them.
-
-- **The first generation makes the first segment**: generated from the character's prompt, seed and range, it becomes prompt segment 1, shown in the timeline (then the segment is the range: drag its ends to change it, or remove it to use the prompt and range again). **Add Prompt Segment** (Generate panel) makes it too before generating; the next ones are added at the end of the track (2 s, no prompt yet). With segments, the panel shows the **active** segment (its prompt, seed, start and end), the arrows go to the previous or next one, and **+**, **−** and the split button add one at the end, remove the active one (the one before takes its frames) or cut the segment under the current frame in two. Without segments, the prompt, seed and range are used again.
-- The segments are drawn as **bands** at the bottom of the **Dope Sheet**, the **Timeline** and the **Graph Editor**: the panel's character, then the other selected characters with segments, each with its name on the left. A band shows each prompt, its frames and seed, your key poses (small diamonds), and the transitions (a blend of colours just before each boundary). A hatched segment hasn't been generated, or was edited since the last generation. **View > Show Prompt Segments** hides them (they cover the bottom of the editor).
-- With the mouse, like NLA strips: **click** a segment to make it the active one (a click on a name makes that character the panel's), **drag** a boundary to move it (the neighbour adapts, the others don't move) or drag a segment to move both its boundaries; **Esc** or a right click cancels. **Double click** opens the segment's prompt, seed and frames; **right click** (the other button, with right-click select) opens its menu: Edit, Split at Current Frame, Add, Remove, Regenerate Segment, Generate Whole Track. **+** after the track adds a segment. Each change is one undo step.
-- **From the animation editors**: the headers of the Dope Sheet, the Timeline and the Graph Editor show the model's state (with a start button when it isn't loaded) and **Generate**, or the progress bar and its cancel button while generating; the eye shows or hides the bands, and the Retargetor menu next to it holds the rest: generate, regenerate the active segment, edit, add, split or remove a segment, Clear Generated Keys, start or stop the model, its errors, the preferences. The Generate panel in the 3D Viewport stays.
-- **Generate** in the timeline's header (or **Generate Whole Track** in the Retargetor menu and the segment's menu) then generates the whole track; the Generate panel's button generates the active segment. Kimodo generates the segments one after the other in one pass, each one starting from the end of the previous one (its first 5 model frames, 0.17 s, follow it): the transitions are the model's. Each segment lasts 0.5 s at least and 10 s at most, but the track can be longer than 10 s. ARDY changes prompt at each boundary while it generates, continuing the motion so far, with no length limit. A model that can't chain prompts generates the segments one after the other, each one starting where the previous one ended, without transition.
-- **Regenerate Segment** (the segment's menu, its popup, the Retargetor menu, the Generate panel) generates one segment again, with its own prompt and seed, and leaves the rest of the track as it is: only the segment's frames get new Generated keys, your keys stay, one undo step. The motion around it is the model's to join: Kimodo is given the 5 model frames (0.17 s) on each side (ARDY 8) and generates the segment from the end of the one before to the start of the one after, like its own transitions, so there is no jump at its boundaries. A neighbour that was never generated (hatched, "not generated yet") isn't joined: the segment starts where the character stands on its first frame, or ends freely; generate that neighbour afterwards, or the whole track. A model that can't continue a motion generates the segment from the last frame of the one before, without transition (the report says so).
-
-### Models
-
-**Edit > Preferences > Add-ons > Retargetor** lists the motion models, each with what it supports (text prompt, key poses, prompt segments, longest motion...):
-
-- **Backend** (or **Use** on a model): the model generating the motion. One model is loaded on the GPU at a time: choosing another one stops the previous one.
-- **Install** sets the model up by itself, after showing what it downloads, from where, and the licences: its own Python and environment (with [uv](https://github.com/astral-sh/uv), downloaded once), its packages (the right PyTorch build for your GPU) and its weights. It runs in the background with its progress; **Cancel** stops it, and **Resume Install** goes on where it stopped (a failure too). **Repair** makes the environment again and completes the weights. The folder and log buttons open the model's folder and its install log; the bin removes the model (its environment and the weights installed with it; its weights in the Hugging Face cache too if you tick it, unless another model needs them).
-- **Models Folder**: where the environments go. Empty: `%LOCALAPPDATA%\Retargetor` on Windows, `~/.local/share/retargetor` on Linux, `~/Library/Application Support/Retargetor` on macOS. Weights from Hugging Face go to its usual cache (`~/.cache/huggingface`), shared with your other tools: weights already there aren't downloaded again.
-- **Existing Environment**: use a Python environment where the model is installed already (its Python executable, for example `kimodo-venv\Scripts\python.exe`), instead of installing it.
-- **Check Setup** says what is ready and what isn't, each problem with its fix: the environment, the packages, the GPU (PyTorch can use it, enough video memory), the weights. Loading the model itself is the **Start** / **Load** button. The animation editors' headers and the Generate panel say when the active model isn't set up.
-- **Gated weights**: some models need weights you must ask access to on Hugging Face (Meta's Llama 3, for example). The check says which, **Request Access** opens its page, and **Sign In** opens a terminal running Hugging Face's own sign-in (from the browser, or with a token you paste there). The add-on never asks for, reads, stores or sends your token: Hugging Face's library uses your sign-in by itself. Kimodo needs none.
-- **ARDY** (NVIDIA, github.com/nv-tlabs/ardy) generates window by window (2 s at a time), each window continuing the previous ones and seeing the key poses ahead: any length, the motion sent to Blender as it comes, about a second for 5 s once loaded. **Model**: **SOMA, 30 fps** (the same skeleton as Kimodo) or **Core, 20 fps** (ARDY's own 27-joint skeleton). Its text encoder is LLM2Vec on Meta's Llama 3 8B Instruct. **Text Encoder**: **8-bit** (the default: 8 GB of video memory, loads in a few seconds, the motion nearly the full one's), **4-bit** (4.7 GB, the motion a little further from the full one's) or **Full** (as ARDY loads it: about 15 GB, a minute to load, and Hugging Face access to Llama 3, requested on its page; weights already in your Hugging Face cache are used as they are). The quantized ones are community builds made for ARDY, not gated. After changing the model or the text encoder, or updating the add-on, the header says **Weights missing** or **Packages missing** until **Install** gets them (a few seconds when the weights are already there). Without a C++ compiler it installs without its post-processing (key poses followed less exactly); install Visual Studio's C++ build tools, then **Repair**.
-- **Kimodo** is installed from Aero-Ex's fork (github.com/Aero-Ex/kimodo), which runs on Windows without a compiler and comes with a 4-bit text encoder (about 5 GB of video memory instead of about 17, no gated weights); the model's weights come from NVIDIA. **Model**: **SOMA, v1.1** (the default) or **SOMA, v1**.
-- **Developer**: also lists the test backends (an interpolation without any model, for tests).
-
-## Good to know
-
-- Only **matched** bones receive keyframes: rotation for all of them, location only for those flagged with translation.
-- Two source bones can't point to the same target bone. Retargetor stops with an explicit message if that happens.
-- The target bones keep their rotation mode (quaternion, Euler or axis-angle); quaternion keys keep continuous signs.
-- With **Rigify** targets, match the **FK** controls and set the limbs to FK, otherwise the snapped bones will have no visible effect.
-- Retargeting scales the root motion, but it can't remove foot sliding when the legs of the two rigs have very different proportions.
-- **Retarget** runs over the scene's frame range and can take a while on long animations.
-
-## Project layout
-
-| File | Role |
-|---|---|
-| `__init__.py` | Add-on entry point, selection handler |
-| `properties.py` | Where the data is stored: rig profile (Armature), character setup (Object) |
-| `migration.py` | Moves setups saved by older versions off the scene |
-| `setup_operators.py` | Bone list setup, translation scale, JSON import/export, corrections |
-| `retarget_operators.py` | Snapping and baking |
-| `profile_operators.py` | Rig profile: presets, detection, roles picked in the viewport, Check Rig, JSON, Snap FK to IK |
-| `rig_check.py` | The rig check: profile problems, then what the controls do |
-| `ui.py` | Sidebar panels and lists |
-| `preferences.py` | Add-on preferences: backend, models' folder, each model's environment and settings, developer option |
-| `model_setup.py` | The models' setup: install, check, remove, sign in, the Models section of the preferences |
-| `generation.py`, `generate_operators.py` | Generate In-betweens: key poses, request, result as Generated keys; operators |
-| `segment_track.py`, `segment_operators.py` | Prompt segments on the character, kept contiguous; add, remove, split, select |
-| `segment_draw.py`, `segment_mouse.py` | Prompt segments drawn in the animation editors, and handled with the mouse |
-| `core/` | Retargeting core, humanoid roles, role detection on a skeleton, neutral motion and skeleton types (see below) |
-| `backends/` | Motion model backends, each in its own folder (`kimodo/`, `ardy/`, `interpolate/`), what several share (`shared/`), the protocol with their worker processes, and `setup/`: installing and checking a model's environment |
-| `presets/` | Rig profile presets (Rigify, Auto-Rig Pro, CloudRig) |
-| `tests/` | Unit tests, headless Blender tests, Kimodo and ARDY tests, real rigs (`python tests/run_tests.py`, see the file) |
-| `blender_manifest.toml` | Extension manifest |
-
-The core can be used from scripts, without the scene properties: `core.retarget.snap.Retargeter(source, target, pairs, translation_scale)` snaps (`snap_pose`) or bakes (`bake(scene, view_layer, frames)`) a list of `BonePair`s, and `core.profile.compose(profile, joint_map, direction)` builds those pairs from a rig profile and a skeleton's role → joint map.
-
-## License
-
-GPL-3.0-or-later, as declared in the manifest.
+- Tests: `python tests/run_tests.py` (see the file for its arguments: the spike outputs, a Kimodo environment, real rigs).
+- The core can be used from scripts, without the scene properties: `core.retarget.snap.Retargeter(source, target, pairs, translation_scale)` snaps (`snap_pose`) or bakes (`bake(scene, view_layer, frames)`) a list of `BonePair`s, and `core.profile.compose(profile, joint_map, direction)` builds those pairs from a rig profile and a skeleton's role → joint map.
+- Package: `blender --command extension build` in the repository's folder.
 
 ## Author
 

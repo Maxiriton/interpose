@@ -1,6 +1,6 @@
 # type: ignore
 """Operators and helpers used to set up the manual bone list between a source and a target armature.
-The setup is stored on the target object (object.retargetor), see properties.py."""
+The setup is stored on the target object (object.interpose), see properties.py."""
 import json
 
 import bpy
@@ -59,10 +59,10 @@ def character_editable(context):
     return target_obj is not None and target_obj.is_editable
 
 
-class RTGTR_Setup_Bone_List(Operator):
+class INTERPOSE_Setup_Bone_List(Operator):
     """List every source bone and guess its target bone from the names"""
-    bl_idname = "retargetor.setup_bone_list"
-    bl_label = "Setup Bone list"
+    bl_idname = "interpose.setup_bone_list"
+    bl_label = "Set Up Bone List"
     bl_options = {'REGISTER', 'UNDO'}
 
     @classmethod
@@ -95,9 +95,9 @@ class RTGTR_Setup_Bone_List(Operator):
         return {'FINISHED'}
 
 
-class RTGTR_OT_AutoTranslationScale(Operator):
+class INTERPOSE_OT_AutoTranslationScale(Operator):
     """Compute the translation scale from the height of the mapped bones of both armatures"""
-    bl_idname = "retargetor.auto_translation_scale"
+    bl_idname = "interpose.auto_translation_scale"
     bl_label = "Auto"
     bl_options = {'REGISTER', 'UNDO'}
 
@@ -118,10 +118,10 @@ class RTGTR_OT_AutoTranslationScale(Operator):
         return {'FINISHED'}
 
 
-class RTGTR_Record_to_json(Operator, ExportHelper):
+class INTERPOSE_Record_to_json(Operator, ExportHelper):
     """Export the bone list to JSON"""
 
-    bl_idname = "retargetor.export_setup_to_json"
+    bl_idname = "interpose.export_setup_to_json"
     bl_label = "Export to JSON"
     bl_options = {'REGISTER'}
 
@@ -166,10 +166,10 @@ class RTGTR_Record_to_json(Operator, ExportHelper):
             return {'CANCELLED'}
 
 
-class RTGTR_import_retarget_json(Operator, ImportHelper):
+class INTERPOSE_import_retarget_json(Operator, ImportHelper):
     """Import the bone list from a JSON file"""
 
-    bl_idname = "retargetor.import_retarget_json"
+    bl_idname = "interpose.import_retarget_json"
     bl_label = "Import from JSON"
     bl_options = {'REGISTER', 'UNDO'}
 
@@ -241,10 +241,10 @@ def recording_ready(context):
     return item is not None and bool(item.target_name)
 
 
-class RTGTR_OT_RecordAdjustment(Operator):
-    """Record an extra rotation offset for the current selected bone"""
-    bl_idname = "retargetor.record_adjustment"
-    bl_label = "Record Adjustment"
+class INTERPOSE_OT_RecordAdjustment(Operator):
+    """Record a correction for the selected row's target bone: rotate it by hand, then Finish Recording"""
+    bl_idname = "interpose.record_adjustment"
+    bl_label = "Record Correction"
     bl_options = {'REGISTER', 'UNDO'}
 
     @classmethod
@@ -270,13 +270,13 @@ class RTGTR_OT_RecordAdjustment(Operator):
         state.recording_initial_rotation = pose_bone.rotation_quaternion
         state.is_recording = True
 
-        self.report({'INFO'}, f"Ready to record pose for {data_bone.name}")
+        self.report({'INFO'}, f"Rotate '{data_bone.name}' by hand, then Finish Recording")
         return {'FINISHED'}
 
 
-class RTGTR_OT_FinishRecord(Operator):
-    """Store the corrective rotation for the current selected bone"""
-    bl_idname = "retargetor.finish_record"
+class INTERPOSE_OT_FinishRecord(Operator):
+    """Store the rotation made by hand as the row's correction, applied on top of its rest offset"""
+    bl_idname = "interpose.finish_record"
     bl_label = "Finish Recording"
     bl_options = {'REGISTER', 'UNDO'}
 
@@ -306,14 +306,14 @@ class RTGTR_OT_FinishRecord(Operator):
         item.corrective_offset = previous @ difference
         item.has_corrective_offset = True
         state.is_recording = False
-        self.report({'INFO'}, f"Saved transforms for {pose_bone.name}")
+        self.report({'INFO'}, f"Correction recorded for '{pose_bone.name}'")
         return {'FINISHED'}
 
 
-class RTGTR_OT_ClearRecord(Operator):
-    """Clear the corrective offset for the current selected bone"""
-    bl_idname = "retargetor.clear_record"
-    bl_label = "Clear Record"
+class INTERPOSE_OT_ClearRecord(Operator):
+    """Clear the correction of the selected row"""
+    bl_idname = "interpose.clear_record"
+    bl_label = "Clear Correction"
     bl_options = {'REGISTER', 'UNDO'}
 
     @classmethod
@@ -325,19 +325,19 @@ class RTGTR_OT_ClearRecord(Operator):
         item = state.active_item()
         item.corrective_offset = IDENTITY_QUATERNION
         item.has_corrective_offset = False
-        self.report({'INFO'}, f"Cleared corrective offset for {item.target_name}")
+        self.report({'INFO'}, f"Correction cleared for '{item.target_name}'")
         return {'FINISHED'}
 
 
 ### Registration
 classes = (
-    RTGTR_Setup_Bone_List,
-    RTGTR_OT_AutoTranslationScale,
-    RTGTR_Record_to_json,
-    RTGTR_import_retarget_json,
-    RTGTR_OT_RecordAdjustment,
-    RTGTR_OT_FinishRecord,
-    RTGTR_OT_ClearRecord
+    INTERPOSE_Setup_Bone_List,
+    INTERPOSE_OT_AutoTranslationScale,
+    INTERPOSE_Record_to_json,
+    INTERPOSE_import_retarget_json,
+    INTERPOSE_OT_RecordAdjustment,
+    INTERPOSE_OT_FinishRecord,
+    INTERPOSE_OT_ClearRecord
 )
 
 def register():

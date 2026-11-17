@@ -3,7 +3,7 @@ Rigify rig (rig_keyposes_ik.blend: every limb in IK). One Blender run, the model
 
     blender -b --factory-startup <rig_keyposes_ik.blend> --python tests/blender/test_generate_ardy.py -- <models folder>
 
-<models folder>: where the add-on installed ARDY (RETARGETOR_MODELS_FOLDER); "existing:<python>" for an existing
+<models folder>: where the add-on installed ARDY (INTERPOSE_MODELS_FOLDER); "existing:<python>" for an existing
 environment instead.
 
 - base: key poses on frames 1, 61, 120 at 30 fps (SOMA checkpoint, the 8-bit text encoder, the default): loaded
@@ -37,20 +37,20 @@ def setup(environment, model=SOMA, text_encoder="INT8"):
     if environment.startswith("existing:"):
         bootstrap.set_backend("ardy", python=environment[len("existing:"):], model=model, text_encoder=text_encoder)
     else:
-        os.environ["RETARGETOR_MODELS_FOLDER"] = environment
+        os.environ["INTERPOSE_MODELS_FOLDER"] = environment
         bootstrap.set_backend("ardy", python="managed", model=model, text_encoder=text_encoder)
     rig = bpy.data.objects["rig"]
     bpy.context.view_layer.objects.active = rig
-    if not rig.data.retargetor_profile.roles:
-        bpy.ops.retargetor.profile_load_preset(preset="rigify_human")
-    bpy.context.scene.retargetor_target = rig
-    rig.retargetor.prompt = PROMPT
-    rig.retargetor.seed = SEED
+    if not rig.data.interpose_profile.roles:
+        bpy.ops.interpose.profile_load_preset(preset="rigify_human")
+    bpy.context.scene.interpose_target = rig
+    rig.interpose.prompt = PROMPT
+    rig.interpose.seed = SEED
     return rig
 
 
 def switches(rig):
-    return {limb.name: rig.pose.bones[limb.switch_bone] for limb in rig.data.retargetor_profile.to_core().limbs}
+    return {limb.name: rig.pose.bones[limb.switch_bone] for limb in rig.data.interpose_profile.to_core().limbs}
 
 
 def in_fk(rig, function):
@@ -61,15 +61,15 @@ def in_fk(rig, function):
 
 
 def active():
-    from retargetor.preferences import active_backend
+    from interpose.preferences import active_backend
     return active_backend(bpy.context)
 
 
 def check_follows_model(checks, rig, frames, label):
     """The rig's limbs follow the model's joints (the active checkpoint's joint map)"""
     joint_map = active().joint_map
-    model = rig.retargetor.model_armature
-    profile = rig.data.retargetor_profile.to_core()
+    model = rig.interpose.model_armature
+    profile = rig.data.interpose_profile.to_core()
     limbs = [(b.read_bone, joint_map[b.role]) for b in profile.roles if b.offset_mode == 'ROLL' and b.role in joint_map]
     total = count = 0
     worst = 0.0
@@ -93,7 +93,7 @@ def run_base(checks, rig):
     task = common.generate(checks, "base, first generation (starts ARDY, loads the model)")
     checks.below(task.timings["generation"], 45.0, "first generation, ARDY started and loaded with its 8-bit text "
                                                    "encoder (s)")
-    model = rig.retargetor.model_armature
+    model = rig.interpose.model_armature
     checks.check(len(model.data.bones) == 77, f"SOMA armature built from ARDY's install ({len(model.data.bones)} bones)")
     # 120 frames at 30 fps: two windows of 60 frames, each one sent when done
     checks.check(task.frame_messages >= 2, f"the motion streamed window by window ({task.frame_messages} messages)")
@@ -110,13 +110,13 @@ def run_base(checks, rig):
 
 
 def write_track(rig):
-    from retargetor import segment_track
-    from retargetor.core.segments import PromptSegment
-    segment_track.write_track(rig.retargetor, [PromptSegment(*segment) for segment in common.SEGMENTS])
+    from interpose import segment_track
+    from interpose.core.segments import PromptSegment
+    segment_track.write_track(rig.interpose, [PromptSegment(*segment) for segment in common.SEGMENTS])
 
 
 def run_segments(checks, rig):
-    from retargetor import segment_track
+    from interpose import segment_track
     write_track(rig)
     key_frames = [1, 61, 120]
     before = common.motion_snapshot(rig, key_frames)
@@ -127,14 +127,14 @@ def run_segments(checks, rig):
     common.key_poses_kept(checks, rig, before, "segments")
     checks.check(common.generated_frames(rig) >= set(range(1, 451)) - set(key_frames),
                  "GENERATED keys on the whole track")
-    checks.check(all(segment_track.segment_state(item) == 'GENERATED' for item in rig.retargetor.segments),
+    checks.check(all(segment_track.segment_state(item) == 'GENERATED' for item in rig.interpose.segments),
                  "the segments are marked generated")
     common.boundary_jumps(checks, rig, [151, 301], "segments")
 
 
 def run_segment(checks, rig):
-    from retargetor import segment_track
-    state = rig.retargetor
+    from interpose import segment_track
+    state = rig.interpose
     outside = [f for f in range(1, 451) if not 151 <= f <= 300]
     motion_before = common.motion_snapshot(rig, range(1, 451))
     fk_before = in_fk(rig, lambda: common.motion_snapshot(rig, outside))
@@ -178,7 +178,7 @@ def run_segment(checks, rig):
 
 def run_core(checks, rig, environment):
     # Back to one prompt, then the Core checkpoint: the worker restarts with it, the armature is rebuilt
-    rig.retargetor.segments.clear()
+    rig.interpose.segments.clear()
     setup(environment, CORE, "NF4")
     backend = active()
     checks.check(backend.capabilities.native_fps == 20.0 and backend.joint_map["thigh.L"] == "LeftUpLeg",
@@ -188,7 +188,7 @@ def run_core(checks, rig, environment):
     start = time.perf_counter()
     common.generate(checks, "Core checkpoint, 4-bit text encoder (restarts ARDY with them)")
     print(f"FINDING Core: {time.perf_counter() - start:.1f} s with the model's load")
-    model = rig.retargetor.model_armature
+    model = rig.interpose.model_armature
     checks.check(len(model.data.bones) == 27, f"Core armature replaces SOMA's ({len(model.data.bones)} bones)")
     common.key_poses_kept(checks, rig, before, "Core")
     in_fk(rig, lambda: check_follows_model(checks, rig, range(1, 121), "Core, in FK"))
@@ -205,7 +205,7 @@ def main():
         run_segment(checks, rig)
         run_core(checks, rig, environment)
     finally:
-        from retargetor.backends import registry
+        from interpose.backends import registry
         registry.stop_all()
     checks.finish()
 

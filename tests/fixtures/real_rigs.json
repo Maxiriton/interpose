@@ -1,5 +1,5 @@
 {
-    "about": "Real rigs tested by tests/blender/test_rigs.py. The files are not committed (licences, size): a local JSON maps each file key to its path, given to tests/run_tests.py with --rigs (or RETARGETOR_RIGS). Missing files are skipped.",
+    "about": "Real rigs tested by tests/blender/test_rigs.py. The files are not committed (licences, size): a local JSON maps each file key to its path, given to tests/run_tests.py with --rigs (or INTERPOSE_RIGS). Missing files are skipped.",
     "rigs": [
         {
             "file": "mike",

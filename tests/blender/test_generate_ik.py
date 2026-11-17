@@ -91,17 +91,17 @@ def generated_frames(rig, generation, path, index=0):
 def main():
     checks = bootstrap.Checks("test_generate_ik")
     bootstrap.register_addon()
-    from retargetor import generation
+    from interpose import generation
 
     bootstrap.set_backend("interpolate", developer=True)
     scene = bpy.context.scene
     rig = bpy.data.objects["rig"]
     bpy.context.view_layer.objects.active = rig
-    scene.retargetor_target = rig
+    scene.interpose_target = rig
     # An empty profile (cleared after choosing the character): the generation applies the preset itself
-    from retargetor.profile_operators import detect_preset
-    rig.data.retargetor_profile.roles.clear()
-    rig.data.retargetor_profile.limbs.clear()
+    from interpose.profile_operators import detect_preset
+    rig.data.interpose_profile.roles.clear()
+    rig.data.interpose_profile.limbs.clear()
     rig_profile = detect_preset(rig.data)[1]
     switches = {limb.name: rig.pose.bones[limb.switch_bone] for limb in rig_profile.limbs}
     checks.check(all(s["IK_FK"] == 0.0 for s in switches.values()), "every limb starts in IK")
@@ -126,7 +126,7 @@ def main():
     task = generation.GenerationTask()
     checks.check(task.run(bpy.context, rig) and task.result is not None, "generated with every limb in IK")
     print("FINDING " + "; ".join(task.notes))
-    checks.check(len(rig.data.retargetor_profile.roles) == 23 and "Rigify" in task.notes[0],
+    checks.check(len(rig.data.interpose_profile.roles) == 23 and "Rigify" in task.notes[0],
                  "the generation applied the Rigify preset to the empty profile")
     checks.check(task.modified, "the task knows the rig was changed before generating")
     checks.check(any("back in IK" in note for note in task.notes), "the report says the limbs are back in IK")
@@ -262,7 +262,7 @@ def main():
     checks.check(user_keys(keys_by_type(rig, generation)).keys() >= keys_before.keys(), "user keys kept")
 
     # A limb without IK snap: switched to FK for good, the report says so
-    rig.data.retargetor_profile.limbs[LIMBS.index("leg.R")].ik_snap.clear()
+    rig.data.interpose_profile.limbs[LIMBS.index("leg.R")].ik_snap.clear()
     task = generation.GenerationTask()
     checks.check(task.run(bpy.context, rig), "generated with a limb without IK snap")
     print("FINDING " + "; ".join(task.notes))
@@ -284,7 +284,7 @@ def main():
              value=keys_by_type(rig, generation)[snapped][61][0] + 0.05)
     animator_keys.setdefault(snapped, {})[61] = keys_by_type(rig, generation)[snapped][61]
     try:
-        result = bpy.ops.retargetor.clear_generated_keys('EXEC_DEFAULT')
+        result = bpy.ops.interpose.clear_generated_keys('EXEC_DEFAULT')
     except RuntimeError as e:
         print(f"(operator error) {e}")
         result = {'CANCELLED'}
@@ -302,10 +302,10 @@ def main():
     checks.check(generation.channelbag(rig).fcurves.find('pose.bones["forearm_fk.L"].rotation_quaternion') is None
                  and tuple(forearm.rotation_quaternion) == (1.0, 0.0, 0.0, 0.0),
                  "an FK control left without keys is back at rest")
-    checks.check(not rig.retargetor.get("generated_keys") and not rig.retargetor.get("added_keys"),
+    checks.check(not rig.interpose.get("generated_keys") and not rig.interpose.get("added_keys"),
                  "the records are forgotten")
     try:
-        result = bpy.ops.retargetor.clear_generated_keys('EXEC_DEFAULT')
+        result = bpy.ops.interpose.clear_generated_keys('EXEC_DEFAULT')
     except RuntimeError:
         result = {'CANCELLED'}
     checks.check(result == {'CANCELLED'}, "nothing more to clear")

@@ -11,7 +11,7 @@ _MODEL_ITEMS = [(name, label, f"nvidia/{name}: SOMA skeleton, {joints.MODEL_FPS:
                 for name, label in joints.MODEL_LABELS.items()]
 
 
-class RTGTR_KimodoSettings(PropertyGroup):
+class INTERPOSE_KimodoSettings(PropertyGroup):
     model: EnumProperty(name="Model", items=_MODEL_ITEMS, default=joints.DEFAULT_MODEL,
                         description="Kimodo model to load (its weights are downloaded by the install)")
 
@@ -31,7 +31,7 @@ class KimodoBackend(Backend):
     joint_map = dict(joints.JOINT_MAP)
 
     def settings_class(self):
-        return RTGTR_KimodoSettings
+        return INTERPOSE_KimodoSettings
 
     def draw_settings(self, layout, settings):
         layout.prop(settings, "model")

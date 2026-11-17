@@ -29,7 +29,7 @@ def compare(a, b, frames, names):
 
 def chain_skeleton(count):
     """A skeleton of `count` joints: a root and branches of 6 bones, like a body with fingers"""
-    from retargetor.core.skeleton import Joint, Skeleton
+    from interpose.core.skeleton import Joint, Skeleton
     joints = [Joint("j0", None, (0.0, 0.0, 1.0), (0.0, 0.0, 1.1))]
     for i in range(1, count):
         parent = joints[i - 1] if i % 6 else joints[0]
@@ -43,9 +43,9 @@ def main():
     checks = bootstrap.Checks("test_skeleton_io")
     source, _target = bootstrap.make_test_scene()
     bootstrap.register_addon()
-    from retargetor.core.pose_io import read_motion, write_motion, write_motion_fcurves
-    from retargetor.core.skeleton import Joint, Skeleton
-    from retargetor.core.skeleton_io import armature_backend, armature_skeleton, build_armature
+    from interpose.core.pose_io import read_motion, write_motion, write_motion_fcurves
+    from interpose.core.skeleton import Joint, Skeleton
+    from interpose.core.skeleton_io import armature_backend, armature_skeleton, build_armature
 
     scene = bpy.context.scene
     view_layer = bpy.context.view_layer
