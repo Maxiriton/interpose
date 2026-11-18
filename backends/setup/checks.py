@@ -11,7 +11,7 @@ import sys
 from dataclasses import dataclass
 
 from . import installer, weights as weights_status
-from .spec import MACOS
+from .spec import MACOS, vram_fits
 
 OK = "OK"
 WARNING = "WARNING"
@@ -151,7 +151,7 @@ def gpu_items(requirements, machine, report, managed):
                           f"This PyTorch build ({torch.get('version')}) has no code for the {device['name']} "
                           f"(sm_{major}{minor}).", FIX_REPAIR if managed else "")]
     memory = _gb(device.get("memory_mb", 0))
-    if requirements.min_vram_gb and memory + 0.25 < requirements.min_vram_gb:
+    if not vram_fits(requirements.min_vram_gb, memory):
         return [CheckItem("gpu", "GPU", WARNING,
                           f"{device['name']}, {memory:.0f} GB: the model needs about {requirements.min_vram_gb:g} GB "
                           f"of video memory and may fail or run slowly.")]

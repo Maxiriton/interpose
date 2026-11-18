@@ -38,10 +38,11 @@ Interpose is a Blender extension for animators. You keep your rig, its controls 
 
 | Model | Video memory | Disk | Also needs |
 |---|---|---|---|
-| **Kimodo** | about 7 GB | about 12 GB | |
-| **ARDY**, 8-bit text encoder (the default) | about 10 GB | about 15 GB | Visual Studio's C++ build tools on Windows (a C++ compiler elsewhere) for its post-processing; optional |
-| **ARDY**, 4-bit text encoder | about 6 GB | about 12 GB | the same |
-| **ARDY**, full text encoder | about 17 GB | about 23 GB | access to Meta's Llama 3 on Hugging Face |
+| **ARDY** (the default), 8-bit text encoder | about 9.5 GB | about 15 GB | Visual Studio's C++ build tools on Windows (a C++ compiler elsewhere) for its post-processing; optional |
+| **ARDY**, 4-bit text encoder | about 6.2 GB | about 12 GB | the same |
+| **Kimodo** | about 8 GB | about 12 GB | |
+
+The **text encoder** (the part reading your prompt: Llama 3 8B) takes most of the video memory: that is what decides which model fits your GPU. The preferences show what each setting needs next to your GPU's memory, and pick ARDY's text encoder for your GPU until you choose one.
 
 - An internet connection for the install, and Blender's **Allow Online Access** on (**Edit > Preferences > System > Network**).
 
@@ -55,11 +56,12 @@ To update, install the new zip the same way. Your models stay installed.
 
 ## Installing a model
 
-The models aren't part of the extension: the add-on installs the one you choose, on your request, from its official sources. Open **Edit > Preferences > Add-ons > Interpose** and choose the model in **Backend**: its settings and its setup are shown below, with what it supports (text prompt, key poses, prompt segments, longest motion...). One model is loaded on the GPU at a time.
+The models aren't part of the extension: the add-on installs the one you choose, on your request, from its official sources. Open **Edit > Preferences > Add-ons > Interpose** and choose the model in **Backend** (ARDY by default): its settings and its setup are shown below, with what it supports (text prompt, key poses, prompt segments, longest motion...). One model is loaded on the GPU at a time.
 
-1. Click **Install** on a model. A dialog shows what it downloads, from where, how much, and the licences: read them, they apply to you (see [Licences](#licences)). Confirm.
-2. The install runs in the background with its progress, a few minutes for several GB: its own Python and environment (with [uv](https://github.com/astral-sh/uv), downloaded once), its packages (the right PyTorch build for your GPU), its weights. **Cancel** stops it; **Resume Install** goes on where it stopped, after a failure too.
-3. **Check Setup** says what is ready and what isn't, each problem with its fix: the environment, the packages, the GPU (PyTorch can use it, enough video memory), the weights.
+1. **Check the video memory line** under the model's settings: "Needs about 9.5 GB of video memory, the GPU has 24 GB". With ARDY, choose its text encoder first: **8-bit** or **4-bit**, each with the memory it needs; one marked with a warning icon doesn't fit your GPU. Installing a setting that doesn't fit is possible (the install dialog warns), but the model may fail to load or run very slowly.
+2. Click **Install**. A dialog shows what it downloads, from where, how much, and the licences: read them, they apply to you (see [Licences](#licences)). Confirm.
+3. The install runs in the background with its progress, a few minutes for several GB: its own Python and environment (with [uv](https://github.com/astral-sh/uv), downloaded once), its packages (the right PyTorch build for your GPU), its weights. **Cancel** stops it; **Resume Install** goes on where it stopped, after a failure too.
+4. **Check Setup** says what is ready and what isn't, each problem with its fix: the environment, the packages, the GPU (PyTorch can use it, enough video memory), the weights.
 
 Where things go:
 
@@ -68,7 +70,7 @@ Where things go:
 - **Existing Environment**: use a Python environment where the model is installed already (its Python executable), instead of installing it.
 - **Remove** (the bin) deletes the model's environment and the weights installed with it; its weights in the Hugging Face cache too if you tick it, unless another model needs them. **Repair** makes the environment again and completes the weights.
 
-**Gated weights (Hugging Face sign-in).** Kimodo and ARDY's default text encoder need no account. Only ARDY's **Full** text encoder uses Meta's Llama 3 8B Instruct as Meta publishes it, which you must ask access to:
+**Gated weights (Hugging Face sign-in).** No model needs an account by default. Only ARDY's **Full** text encoder (shown with the **Developer** option) uses Meta's Llama 3 8B Instruct as Meta publishes it, which you must ask access to:
 
 1. Make a Hugging Face account and request access on [Llama 3's page](https://huggingface.co/meta-llama/Meta-Llama-3-8B-Instruct) (**Request Access** in the check opens it), and wait for it to be granted.
 2. Click **Sign In**: a terminal opens running Hugging Face's own sign-in. Sign in there yourself (from the browser, or with a token you paste there).
@@ -78,8 +80,9 @@ The add-on never asks for, reads, stores or sends your token: Hugging Face's lib
 
 **The models:**
 
-- **Kimodo** (NVIDIA): generates up to 10 s per prompt, at 30 fps. Installed from [Aero-Ex's fork](https://github.com/Aero-Ex/kimodo), which runs on Windows without a compiler and comes with a 4-bit text encoder (about 5 GB of video memory instead of 17, no gated weights). **Model**: **SOMA, v1.1** (the default) or **SOMA, v1**.
-- **ARDY** (NVIDIA): generates window by window (2 s at a time), with no length limit, about a second for 5 s once loaded. **Model**: **SOMA, 30 fps** or **Core, 20 fps** (its own 27-joint skeleton). **Text Encoder**: **8-bit** (the default: 8 GB of video memory, loads in a few seconds), **4-bit** (4.7 GB, the motion a little further from the full one's) or **Full** (about 15 GB, a minute to load, gated). Without a C++ compiler it installs without its post-processing, and follows the key poses less exactly: install Visual Studio's C++ build tools (the "Desktop development with C++" workload), then **Repair**.
+- **ARDY** (NVIDIA, the default): generates window by window (2 s at a time), with no length limit, about a second for 5 s once loaded, at 30 fps. **Text Encoder**: **8-bit** (9.5 GB of video memory in all, loads in a few seconds) or **4-bit** (6.2 GB, the motion a little further from the full one's). Without a C++ compiler it installs without its post-processing, and follows the key poses less exactly: install Visual Studio's C++ build tools (the "Desktop development with C++" workload), then **Repair**.
+- **Kimodo** (NVIDIA): generates up to 10 s per prompt, at 30 fps, in about 3 s once loaded. Installed from [Aero-Ex's fork](https://github.com/Aero-Ex/kimodo), which runs on Windows without a compiler and comes with a 4-bit text encoder (no gated weights).
+- **Developer** (at the bottom of the preferences) also shows the variants kept for comparisons: Kimodo's v1 model, ARDY's Core checkpoint (its own 27-joint skeleton, 20 fps) and its **Full** text encoder (16.5 GB, a minute to load, gated).
 - After changing a model's setting, or updating the add-on, the header may say **Weights missing** or **Packages missing**: **Install** gets them (seconds when the weights are already there).
 
 ## Setting up a rig
@@ -142,7 +145,7 @@ A character can follow several prompts one after the other: "walks forward" for 
 - **The header says "not set up", "Weights missing" or "Packages missing"**: open the preferences, **Check Setup**, and follow the fix shown for each problem (usually **Install** or **Repair**).
 - **The install fails right away**: Blender's **Allow Online Access** must be on (Preferences > System > Network). Look at the install log (the log button next to the model); **Resume Install** goes on where it stopped.
 - **The check says a gated repository needs access, or that the sign-in expired**: request access on the repository's page, then **Sign In** (see [Installing a model](#installing-a-model)), then **Install** again.
-- **Not enough video memory**: close other applications using the GPU, stop the other model, use ARDY's 8-bit or 4-bit text encoder, or Kimodo.
+- **Not enough video memory**: close other applications using the GPU, stop the other model, or choose ARDY's 4-bit text encoder (then **Install**: it downloads that encoder).
 - **The check says PyTorch can't use the GPU**: update the NVIDIA driver. An RTX 50 series GPU gets a PyTorch build for it (CUDA 12.8) at the install; after changing the GPU, **Repair**.
 - **Generate says the rig has a problem**: the Rig Setup panel lists what **Check Rig** found, each with its role. Fix the profile, or the rig, and run **Check Rig** again.
 - **The character doesn't move, or only some limbs move**: check that the profile's roles are found (Rig Setup panel) and that your key poses are on the profile's controls. On Rigify, a limb in IK whose IK/FK switch is animated between key poses needs a key pose on the frames where it switches.

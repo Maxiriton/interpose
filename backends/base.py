@@ -78,8 +78,10 @@ class Backend:
         """Names the skeleton the backend generates on: the model's armature is rebuilt when it changes"""
         return self.id
 
-    def draw_settings(self, layout, settings):
-        """Draw the backend's preferences (settings is an instance of settings_class())."""
+    def draw_settings(self, layout, settings, developer=False, gpu_memory_gb=None):
+        """Draw the backend's preferences (settings is an instance of settings_class()). developer: the Developer
+        option is on (the variants an animator doesn't need are shown too). gpu_memory_gb: the GPU's video memory
+        (None: no NVIDIA GPU)."""
 
     @property
     def installable(self):

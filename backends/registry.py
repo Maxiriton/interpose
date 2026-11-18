@@ -1,7 +1,8 @@
 """The backends the add-on knows, and their workers (one per backend, kept running between generations).
 
-Adding a backend: a folder next to kimodo/, ardy/ and interpolate/, and one line in BACKENDS. Never reorder the list:
-the position of a backend is its number in the preferences file.
+Adding a backend: a folder next to kimodo/, ardy/ and interpolate/, and one line at the end of BACKENDS. Never
+reorder the list (from 0.1.0 on): the position of a backend is its number in the preferences file, and the first one
+is the default.
 """
 from . import process
 from .ardy.backend import ArdyBackend
@@ -9,9 +10,9 @@ from .interpolate.backend import InterpolateBackend
 from .kimodo.backend import KimodoBackend
 
 BACKENDS = [
+    ArdyBackend(),
     KimodoBackend(),
     InterpolateBackend(),
-    ArdyBackend(),
 ]
 
 # {backend id: (Worker, (command, env)) }

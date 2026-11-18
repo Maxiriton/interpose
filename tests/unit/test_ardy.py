@@ -12,7 +12,7 @@ if REPO not in sys.path:
 
 from backends.ardy import install, models  # noqa: E402
 from backends.ardy.worker import window_constraints  # noqa: E402
-from backends.setup.spec import Gpu, Machine  # noqa: E402
+from backends.setup.spec import VRAM_MARGIN_GB, Gpu, Machine, vram_fits  # noqa: E402
 from core.roles import ROLES_BY_ID  # noqa: E402
 
 # ARDY's skeletons (ardy/skeleton/definitions.py at the pinned commit)
@@ -79,6 +79,18 @@ class TestCheckpoints(unittest.TestCase):
         self.assertEqual(bare.packages[1].env, (("ARDY_SKIP_MOTION_CORRECTION", "1"),))
         self.assertIn("cu128", bare.packages[0].index_url)
         self.assertTrue(any("compiler" in note for note in bare.notes))
+
+    def test_text_encoder_for_the_gpu(self):
+        """The video memory each text encoder needs, and the one a GPU gets when the user never chose"""
+        self.assertEqual([models.needed_vram_gb(n) for n in ("INT8", "NF4", "FULL")], [9.5, 6.2, 16.5])
+        self.assertEqual(models.PUBLIC_TEXT_ENCODERS, ("INT8", "NF4"))
+        self.assertEqual(models.auto_text_encoder(24.0, VRAM_MARGIN_GB), "INT8")
+        self.assertEqual(models.auto_text_encoder(10.0, VRAM_MARGIN_GB), "INT8")
+        self.assertEqual(models.auto_text_encoder(9.3, VRAM_MARGIN_GB), "INT8")  # nvidia-smi's rounding
+        self.assertEqual(models.auto_text_encoder(8.0, VRAM_MARGIN_GB), "NF4")
+        self.assertEqual(models.auto_text_encoder(6.0, VRAM_MARGIN_GB), "NF4")
+        self.assertEqual(models.auto_text_encoder(None, VRAM_MARGIN_GB), "INT8")
+        self.assertTrue(vram_fits(9.5, 9.3) and not vram_fits(9.5, 8.0) and vram_fits(0.0, 0.0))
 
 
 class TestWindowConstraints(unittest.TestCase):

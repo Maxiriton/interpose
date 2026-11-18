@@ -80,6 +80,15 @@ class Weights:
         return f"https://huggingface.co/{self.repo_id}"
 
 
+# A GPU this much short of a model's video memory still counts as enough (nvidia-smi and PyTorch round differently)
+VRAM_MARGIN_GB = 0.25
+
+
+def vram_fits(needed_gb, memory_gb):
+    """A GPU with memory_gb of video memory has the needed_gb a model needs (no need: always)"""
+    return not needed_gb or memory_gb + VRAM_MARGIN_GB >= needed_gb
+
+
 @dataclass(frozen=True)
 class Requirements:
     """Everything a backend's model needs, for one machine.

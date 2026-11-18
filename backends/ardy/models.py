@@ -53,6 +53,23 @@ TEXT_ENCODERS = {
                                 "Hugging Face access to Meta's Llama 3"),
 }
 DEFAULT_TEXT_ENCODER = "INT8"
+# Shown without the Developer option: the full one needs Meta's access to Llama 3, a minute to load and 15 GB for a
+# motion hardly different from the 8-bit one's
+PUBLIC_TEXT_ENCODERS = ("INT8", "NF4")
+# The model and its windows, beside the text encoder
+MODEL_VRAM_GB = 1.5
+
+
+def needed_vram_gb(encoder_name):
+    """Video memory ARDY needs with this text encoder: the encoder takes most of it"""
+    return text_encoder(encoder_name).vram_gb + MODEL_VRAM_GB
+
+
+def auto_text_encoder(gpu_memory_gb, margin_gb=0.0):
+    """The text encoder for a GPU (None: unknown): the 8-bit one when it fits, else the 4-bit one"""
+    if gpu_memory_gb is not None and gpu_memory_gb + margin_gb < needed_vram_gb(DEFAULT_TEXT_ENCODER):
+        return "NF4"
+    return DEFAULT_TEXT_ENCODER
 
 
 def text_encoder(name):
