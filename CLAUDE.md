@@ -2,7 +2,7 @@
 
 ## Project
 
-Interpose is a Blender extension (Blender 5.2+): the user poses their own rig at a few key frames, an AI motion model generates the movement between the key poses, and the result comes back onto the rig's controls as keys. It started as a retargeting tool between armatures with different rest poses (called Retargetor until 0.1.0), which is still its core and one of its panels. Read [ROADMAP.md](ROADMAP.md) for the goal, the architecture, the phases and the decisions.
+Interpose is a Blender extension (Blender 5.2+): the user poses their own rig at a few key frames, an AI motion model generates the movement between the key poses, and the result comes back onto the rig's controls as keys. It started as a retargeting tool between armatures with different rest poses (called Retargetor until 0.1.0): the retargeting core (`core/retarget/`) carries the motion between the model's skeleton and the rig, its panel is gone. Read [ROADMAP.md](ROADMAP.md) for the goal, the architecture, the phases and the decisions.
 
 ## Architecture rules
 
@@ -16,16 +16,14 @@ Interpose is a Blender extension (Blender 5.2+): the user poses their own rig at
 
 | File | Role |
 |---|---|
-| `__init__.py` | Entry point, bone selection handler |
-| `properties.py` | Stored data: rig profile on `Armature.interpose_profile`, character state on `Object.interpose` (prompt, seed, custom range, prompt segments), `Scene.interpose_target` (which character the panel edits) |
-| `migration.py` | `load_post` handler moving what Retargetor saved to Interpose's names (`RENAMED_PROPERTIES`), the old `scene.retarget_*` setups onto the target object, and giving the presets' old names (`RENAMED_PRESETS`) their current one |
-| `setup_operators.py` | Bone list setup, translation scale, JSON import/export, corrections |
-| `retarget_operators.py` | Snapping and baking operators |
+| `__init__.py` | Entry point |
+| `properties.py` | Stored data: rig profile on `Armature.interpose_profile`, character state on `Object.interpose` (prompt, seed, custom range, prompt segments), `Scene.interpose_target` (the character the panels and editors work on: the active armature, followed by a depsgraph handler; a model armature never is one) |
+| `migration.py` | `load_post` handler moving what Retargetor saved to Interpose's names (`RENAMED_PROPERTIES`), and giving the presets' old names (`RENAMED_PRESETS`) their current one |
 | `profile_operators.py` | Rig profile: presets (fitted: optional roles whose bones are missing left out), skeleton detection (`detect_profile`: preset, else `core.rig_detect`; cached per armature), Detect / Assign / Select / Clear a role, Check Rig (`checked`: one check per profile, run by Generate), JSON, Snap FK to IK |
 | `rig_check.py` | The rig check: `profile_problems` (static) and `control_problems` (each write control turned, each IK limb snapped and switched both ways; pose put back) |
-| `ui.py` | Sidebar panels and lists (Retarget, Rig Setup with its IK/FK Limbs and Advanced sub-panels, Generate); the animation editors' header (model state, Generate or progress, bands toggle, Interpose menu) |
-| `preferences.py` | Add-on preferences: active backend, models' folder, developer option, each backend's settings (declared by the backend) and environment (`setup_<id>`: installed by the add-on or existing) |
-| `model_setup.py` | The models' setup, Blender side: the environment's Python and paths (`worker_for`), install / check / remove / sign-in operators, a timer following them, the Models section of the preferences, `setup_problem` for the headers |
+| `ui.py` | Sidebar panels and lists (Rig Setup with its IK/FK Limbs and Advanced sub-panels, Generate); the animation editors' header (model state, Generate or progress or why it can't start (`rig_problem`: not in Pose Mode, rig not set up...) with Set Up Rig opening the Rig Setup panel as a popup, bands toggle, Interpose menu) |
+| `preferences.py` | Add-on preferences: active backend (the first in `registry.BACKENDS`, ARDY, by default), models' folder, developer option (also shows the variants an animator doesn't need: `Backend.draw_settings(..., developer, gpu_memory_gb)`), each backend's settings (declared by the backend) and environment (`setup_<id>`: installed by the add-on or existing) |
+| `model_setup.py` | The models' setup, Blender side: the environment's Python and paths (`worker_for`), install / check / remove / sign-in operators, a timer following them, the Models section of the preferences (`vram_status`: the setting's video memory against the GPU's), `setup_problem` for the headers |
 | `generation.py` | Generate In-betweens step by step (`GenerationTask`): key poses, model armature, request, result baked as `GENERATED` keys (`MotionWriter`), IK controls snapped back (`IkSnapWriter`); the whole track or one segment alone (`segment_chunk`: the motion around it as context) |
 | `generated_keys.py` | Edited `GENERATED` keys become Keyframes as soon as they are edited: values recorded after each generation, compared by a depsgraph handler. Also records the user keys the add-on makes itself (FK snap...), and `clear()` removes both |
 | `segment_track.py` | A character's prompt segments (`Object.interpose.segments`) read and written as a `core.segments` track, kept contiguous when a start or end is edited; generated state |
@@ -45,7 +43,7 @@ Interpose is a Blender extension (Blender 5.2+): the user poses their own rig at
 | `backends/interpolate/` | Test backend: slerp between key poses, one joint per role; worker runs with Blender's Python |
 | `backends/shared/` | What several backends share (no `bpy`): `convert.py` (Blender <-> Y-up model conversions, timing, canonical frame, constraint lists, `FrameStream` for streamed windows; Kimodo and ARDY), `soma.py` (SOMA's role map and end-effectors), `messages.py` (the workers' progress messages, worded the same for every model) |
 | `backends/kimodo/` | Kimodo: constants (`joints.py`, SOMA from `shared/soma.py`), what it installs (`install.py`: Aero-Ex's fork, pinned), `worker.py` (runs in the Kimodo venv) |
-| `backends/ardy/` | ARDY: its checkpoints (`models.py`: SOMA 30 fps or Core 20 fps, each with its joint map; its text encoders: 8-bit (default), 4-bit or full), what it installs (`install.py`: pinned commit, its C++ post-processing built when a compiler is there), `backend.py` (capabilities per checkpoint: `configured(settings)`), `worker.py` (window by window, streamed) |
+| `backends/ardy/` | ARDY: its checkpoints (`models.py`: SOMA 30 fps or Core 20 fps, each with its joint map; its text encoders: 8-bit or 4-bit, the full one for developers, each with the video memory it needs; `backend.chosen_text_encoder`: the one the GPU fits until the user chooses), what it installs (`install.py`: pinned commit, its C++ post-processing built when a compiler is there), `backend.py` (capabilities per checkpoint: `configured(settings)`), `worker.py` (window by window, streamed) |
 | `presets/` | Rig profile presets (JSON): Rigify, Auto-Rig Pro, CloudRig |
 | `tests/` | `unit/` (Blender's Python, numpy, no `bpy`), `blender/` (headless), `kimodo/` (Kimodo venv), `fixtures/` (synthetic skeletons named like common rigs in `humanoids.py`, the real rigs' manifest `real_rigs.json`); `python tests/run_tests.py` runs them all |
 

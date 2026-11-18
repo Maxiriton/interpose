@@ -1,21 +1,16 @@
-"""The existing panel's workflow on two small armatures, with the setup stored on the character.
+"""The panels on two small armatures: the character following the active armature, what keeps Generate from
+starting (rig_problem), the rig profile panel and its JSON, and drawing the panels, the editors' header and the
+Interpose menu (with a layout that checks every property and operator).
 
     blender -b --factory-startup --python tests/blender/test_panel.py -- <scratch dir>
-
-Covers: bone list, translation scale, bake, snapping, corrections, JSON round trip, two characters in one
-scene, the selection handler, and drawing the panels (with a layout that checks every property and operator).
 """
 import os
 import sys
 
 import bpy
-from mathutils import Quaternion, Vector
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import bootstrap  # noqa: E402
-from bootstrap import angle_deg, bone_direction  # noqa: E402
-
-LIMBS = [("Arm.L", "arm.L"), ("Forearm.L", "forearm.L"), ("Leg.L", "leg.L"), ("Shin.L", "shin.L")]
 
 
 ICONS = set(bpy.types.UILayout.bl_rna.functions["label"].parameters["icon"].enum_items.keys())
@@ -84,139 +79,86 @@ class CheckingLayout:
 def draw_panels(panels=None):
     errors = []
     from interpose import ui
-    for panel in panels or (ui.INTERPOSE_PT_RetargetPanel, ui.INTERPOSE_PT_RigProfilePanel,
-                            ui.INTERPOSE_PT_RigLimbsPanel, ui.INTERPOSE_PT_RigAdvancedPanel, ui.INTERPOSE_MT_ProfileFiles):
+    for panel in panels or (ui.INTERPOSE_PT_RigProfilePanel, ui.INTERPOSE_PT_RigLimbsPanel,
+                            ui.INTERPOSE_PT_RigAdvancedPanel, ui.INTERPOSE_MT_ProfileFiles,
+                            ui.INTERPOSE_PT_GeneratePanel, ui.INTERPOSE_MT_EditorMenu):
+        if hasattr(panel, "poll") and not panel.poll(bpy.context):
+            continue
         fake = type("Panel", (), {"layout": CheckingLayout(errors)})()
         panel.draw(fake, bpy.context)
+    fake = type("Header", (), {"layout": CheckingLayout(errors)})()
+    ui.draw_editor_header(fake, bpy.context)
     return errors
-
-
-def directions_match(source, target, frames):
-    scene = bpy.context.scene
-    worst = 0.0
-    for frame in frames:
-        scene.frame_set(frame)
-        for src, tgt in LIMBS:
-            worst = max(worst, angle_deg(bone_direction(source, src), bone_direction(target, tgt)))
-    return worst
 
 
 def main(scratch):
     checks = bootstrap.Checks("test_panel")
     source, target = bootstrap.make_test_scene()
     bootstrap.register_addon()
+    from interpose import ui
+    from interpose.core.skeleton_io import SKELETON_PROPERTY
     scene = bpy.context.scene
     view_layer = bpy.context.view_layer
+    for obj in scene.objects:
+        obj.select_set(False)
+    view_layer.objects.active = None
+    view_layer.update()
+    scene.interpose_target = None
 
     checks.check(draw_panels() == [], "panels draw with no character")
-    checks.check(not bpy.ops.interpose.setup_bone_list.poll(), "Setup Bone list needs a character")
+    checks.check(ui.rig_problem(bpy.context) == ("Select the character's armature in Pose Mode", False),
+                 f"no character: select one ({ui.rig_problem(bpy.context)})")
 
-    scene.interpose_target = target
-    state = target.interpose
-    state.source = source
-    checks.check(draw_panels() == [], "panels draw with an empty bone list")
-
-    # Bone list, guessed from the names
-    checks.check(bpy.ops.interpose.setup_bone_list() == {'FINISHED'}, "Setup Bone list")
-    checks.check([(i.src_name, i.target_name) for i in state.bones] ==
-                 [("Hips", "hips"), ("Spine", "spine")] + LIMBS, "bones matched by name")
-    for item in state.bones:
-        item.offset_mode = 'REST_OFFSET' if item.src_name in ("Hips", "Spine") else 'ROLL'
-        item.use_translation = item.src_name == "Hips"
-    checks.check(bpy.ops.interpose.auto_translation_scale() == {'FINISHED'}, "Auto translation scale")
-    # Z extent of the mapped bone heads: 1.65 - 0.6 on the target, 1.35 - 0.5 on the source
-    checks.close(state.translation_scale, 1.05 / 0.85, 1e-6, "translation scale = height ratio")
+    # The character follows the active armature
     view_layer.objects.active = target
-    checks.check(draw_panels() == [], "panels draw with a bone list")
-
-    # Bake over the scene range
-    checks.check(bpy.ops.interpose.simple_retarget() == {'FINISHED'}, "Retarget (bake)")
-    checks.below(directions_match(source, target, range(1, 11)), 1e-3, "limbs follow the source (deg)")
-    scene.frame_set(10)
-    src_move = source.matrix_world @ source.pose.bones["Hips"].head - source.matrix_world @ source.data.bones["Hips"].head_local
-    tgt_move = target.matrix_world @ target.pose.bones["hips"].head - target.matrix_world @ target.data.bones["hips"].head_local
-    checks.below((tgt_move - state.translation_scale * src_move).length * 100, 1e-3, "hips move scaled (cm)")
-    from bpy_extras.anim_utils import action_get_channelbag_for_slot
-    channelbag = action_get_channelbag_for_slot(target.animation_data.action, target.animation_data.action_slot)
-    fcurve = channelbag.fcurves.find('pose.bones["arm.L"].rotation_quaternion', index=0)
-    checks.check(len(fcurve.keyframe_points) == 10, "one key per frame")
-    checks.check(channelbag.fcurves.find('pose.bones["arm.L"].location', index=0) is None, "no location key on limbs")
-
-    # Snapping, in Pose Mode on the target
-    target.animation_data_clear()
+    view_layer.update()
+    checks.check(scene.interpose_target == target, "the active armature becomes the character")
+    checks.check(ui.rig_problem(bpy.context) == ("Enter Pose Mode to generate", False),
+                 f"in Object Mode: enter Pose Mode ({ui.rig_problem(bpy.context)})")
     bpy.ops.object.mode_set(mode='POSE')
-    scene.frame_set(7)
-    checks.check(bpy.ops.interpose.snap_full_pose() == {'FINISHED'}, "Snap full pose")
-    checks.below(directions_match(source, target, [7]), 1e-3, "snapped pose follows the source (deg)")
-    target.data.bones.active = target.data.bones["forearm.L"]
-    target.pose.bones["forearm.L"].rotation_quaternion = (1.0, 0.0, 0.0, 0.0)
-    checks.check(bpy.ops.interpose.snap_selected_bone() == {'FINISHED'}, "Snap active bone")
-    checks.below(angle_deg(bone_direction(source, "Forearm.L"), bone_direction(target, "forearm.L")), 1e-3,
-                 "active bone snapped (deg)")
-
-    # Recording a correction on the forearm
-    state.bones_active_index = 3
-    checks.check(bpy.ops.interpose.record_adjustment() == {'FINISHED'}, "Record Correction")
-    checks.check(state.is_recording, "recording")
-    checks.check(draw_panels() == [], "panels draw while recording")
-    extra = Quaternion((0.0, 1.0, 0.0), 0.4)
-    pb = target.pose.bones["forearm.L"]
-    pb.rotation_quaternion = pb.rotation_quaternion @ extra
-    view_layer.update()
-    wanted = (target.matrix_world @ pb.matrix).to_quaternion()
-    checks.check(bpy.ops.interpose.finish_record() == {'FINISHED'}, "Finish Recording")
-    checks.check(state.bones[3].has_corrective_offset and not state.is_recording, "correction stored")
-    pb.rotation_quaternion = (1.0, 0.0, 0.0, 0.0)
-    bpy.ops.interpose.snap_selected_bone()
-    view_layer.update()
-    got = (target.matrix_world @ pb.matrix).to_quaternion()
-    checks.below(wanted.rotation_difference(got).angle * 57.3, 1e-3, "snap applies the correction (deg)")
-
-    # A new target bone clears the correction
-    state.bones[3].target_name = "shin.L"
-    checks.check(not state.bones[3].has_corrective_offset, "changing the target clears the correction")
-    state.bones[3].target_name = "forearm.L"
-    state.bones[3].has_corrective_offset = True
-    state.bones[3].corrective_offset = extra
-    checks.check(bpy.ops.interpose.clear_record() == {'FINISHED'}, "Clear Record")
-    checks.check(not state.bones[3].has_corrective_offset, "correction cleared")
-    state.bones[3].has_corrective_offset = True
-    state.bones[3].corrective_offset = extra
+    problem = ui.rig_problem(bpy.context)
+    checks.check(problem is not None and problem[1] and "rig" in problem[0],
+                 f"a rig the add-on doesn't recognize: set it up ({problem})")
+    checks.check(draw_panels() == [], "panels draw with a rig to set up")
     bpy.ops.object.mode_set(mode='OBJECT')
 
-    # JSON round trip onto a second character in the same scene
-    path = os.path.join(scratch, "panel_setup.json")
-    checks.check(bpy.ops.interpose.export_setup_to_json(filepath=path) == {'FINISHED'}, "Export to JSON")
+    view_layer.objects.active = source
+    view_layer.update()
+    checks.check(scene.interpose_target == source, "another active armature becomes the character")
+    # A click on a band's name tag sets the character: it holds until the active object changes
+    scene.interpose_target = target
+    view_layer.update()
+    checks.check(scene.interpose_target == target, "a character picked from its band holds while the active one stays")
+    view_layer.objects.active = target
+    view_layer.update()
+    view_layer.objects.active = source
+    view_layer.update()
+    checks.check(scene.interpose_target == source, "and follows the active armature again when it changes")
+
+    # A motion model's armature is never the character
+    model = bootstrap.make_armature("MODEL", bootstrap.TARGET_BONES, location=(4.0, 0.0, 0.0))
+    model.data[SKELETON_PROPERTY] = "{}"
+    view_layer.objects.active = source  # make_armature left the model active, unmarked yet
+    view_layer.update()
+    scene.interpose_target = source
+    view_layer.objects.active = model
+    view_layer.update()
+    checks.check(scene.interpose_target == source, "a model armature doesn't become the character")
+    model.data.pop(SKELETON_PROPERTY)
+    bpy.data.objects.remove(model)
     second = bootstrap.make_armature("TGT2", bootstrap.TARGET_BONES, location=(-2.0, 0.0, 0.0))
-    scene.interpose_target = second
-    second.interpose.source = source
-    checks.check(bpy.ops.interpose.import_retarget_json(filepath=path) == {'FINISHED'}, "Import from JSON")
-    first_rows = [(i.src_name, i.target_name, i.offset_mode, i.use_translation, i.has_corrective_offset,
-                   tuple(round(v, 6) for v in i.corrective_offset)) for i in state.bones]
-    second_rows = [(i.src_name, i.target_name, i.offset_mode, i.use_translation, i.has_corrective_offset,
-                    tuple(round(v, 6) for v in i.corrective_offset)) for i in second.interpose.bones]
-    checks.check(first_rows == second_rows, "imported list equals the exported one")
-    checks.close(second.interpose.translation_scale, state.translation_scale, 1e-6, "scale recomputed on import")
-
-    second.interpose.bones[2].target_name = ""
-    checks.check(state.bones[2].target_name == "arm.L", "two characters keep separate lists")
-    view_layer.objects.active = second
-    checks.check(bpy.ops.interpose.simple_retarget() == {'FINISHED'}, "bake the second character")
-    checks.check(target.animation_data is None or target.animation_data.action is None,
-                 "the first character is not touched")
-
-    # Selection handler: selecting a bone in Pose Mode selects its row
-    bpy.ops.object.mode_set(mode='POSE')
-    second.data.bones.active = second.data.bones["shin.L"]
-    view_layer.update()
-    checks.check(second.interpose.bones_active_index == 5, "selecting a target bone selects its row")
-    bpy.ops.object.mode_set(mode='OBJECT')
 
     # Rig profile panel on an armature with a profile
     view_layer.objects.active = target
+    view_layer.update()
+    target.data.interpose_profile.roles.clear()
     checks.check(bpy.ops.interpose.profile_add_roles() == {'FINISHED'}, "Add Roles")
     profile = target.data.interpose_profile
     checks.check(len(profile.roles) == 23, "every role added")
+    bpy.ops.object.mode_set(mode='POSE')
+    checks.check(ui.rig_problem(bpy.context) == ("TGT: rig setup incomplete", True),
+                 f"required bones missing: the rig setup fixes it ({ui.rig_problem(bpy.context)})")
+    bpy.ops.object.mode_set(mode='OBJECT')
     profile.limbs.add().name = "arm.L"
     checks.check(draw_panels() == [], "panels draw with a rig profile")
     path = os.path.join(scratch, "panel_profile.json")

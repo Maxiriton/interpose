@@ -15,6 +15,9 @@ def build_armature(context, skeleton, name, collection, backend_id=""):
     bones (quaternion rotation mode). The skeleton is kept on the armature data, so it can be read back without
     asking the backend again. The active object and its mode are restored."""
     data = bpy.data.armatures.new(name)
+    # Marked first: while it is the active object, the add-on knows it isn't a character
+    data[SKELETON_PROPERTY] = json.dumps(skeleton.to_dict())
+    data[BACKEND_PROPERTY] = backend_id
     obj = bpy.data.objects.new(name, data)
     collection.objects.link(obj)
 
@@ -46,8 +49,6 @@ def build_armature(context, skeleton, name, collection, backend_id=""):
 
     for pose_bone in obj.pose.bones:
         pose_bone.rotation_mode = 'QUATERNION'
-    data[SKELETON_PROPERTY] = json.dumps(skeleton.to_dict())
-    data[BACKEND_PROPERTY] = backend_id
     return obj
 
 

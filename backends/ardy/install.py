@@ -94,8 +94,8 @@ def requirements(machine, model=models.DEFAULT_MODEL, text_encoder=models.DEFAUL
         optional_imports=(("motion_correction._motion_correction",
                            "ARDY's post-processing is off: key poses are followed less exactly."),),
         cuda=True,
-        # The text encoder, and the model with its windows: about 1.5 GB
-        min_vram_gb=encoder.vram_gb + 1.5,
+        # The text encoder, and the model with its windows
+        min_vram_gb=models.needed_vram_gb(text_encoder),
         disk_gb=6.0,
         notes=tuple(notes),
         licences=(("ARDY code: Apache-2.0", f"{REPOSITORY}/blob/{COMMIT}/LICENSE"),

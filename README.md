@@ -4,8 +4,6 @@
 
 Interpose is a Blender extension for animators. You keep your rig, its controls and your key poses; a motion model (NVIDIA's Kimodo or ARDY for now, others can be added) generates the in-betweens from a text prompt ("a person walks forward and waves"), and the result comes back as ordinary keys you can edit. It works with Rigify, Auto-Rig Pro and CloudRig rigs, and with skeletons such as Mixamo characters, without any setup; other rigs are set up once.
 
-It also retargets an animation from one armature to another, even when their rest poses don't match.
-
 > **Status:** 0.1.0, the first public version. Tested on Windows 11 with an NVIDIA RTX 3090. Feedback and bug reports are welcome on the [issues page](https://github.com/Maxiriton/interpose/issues).
 
 ---
@@ -19,7 +17,7 @@ It also retargets an animation from one armature to another, even when their res
 - [Prompt segments](#prompt-segments)
 - [Limits](#limits)
 - [Troubleshooting](#troubleshooting)
-- [Retargeting between two armatures](#retargeting-between-two-armatures)
+- [Files from older versions](#files-from-older-versions)
 - [Licences](#licences)
 - [For developers](#for-developers)
 
@@ -32,19 +30,19 @@ It also retargets an animation from one armature to another, even when their res
 - **Rig setup**: Rigify, Auto-Rig Pro and CloudRig rigs and skeletons (Mixamo, Unreal, SMPL, VRM, Daz, Character Creator...) set themselves up. Others are set up by picking their bones, and **Check Rig** tests what the controls really do.
 - **Models installed for you**: the add-on installs a model (its Python, its packages, its weights) from its preferences, and checks the setup with a clear fix for each problem.
 - **Several characters per scene**, each with its own prompt, segments and settings.
-- **Retargeting** between two armatures with different rest poses, bone by bone.
 
 ## Requirements
 
 - **Blender 5.2** or newer.
-- **To generate**: an **NVIDIA GPU** with enough video memory, and disk space for the model. macOS can't generate (no NVIDIA GPUs); Linux should work but isn't tested yet. The retargeting and the rig setup work everywhere.
+- **To generate**: an **NVIDIA GPU** with enough video memory, and disk space for the model. macOS can't generate (no NVIDIA GPUs); Linux should work but isn't tested yet. The rig setup works everywhere.
 
 | Model | Video memory | Disk | Also needs |
 |---|---|---|---|
-| **Kimodo** | about 7 GB | about 12 GB | |
-| **ARDY**, 8-bit text encoder (the default) | about 10 GB | about 15 GB | Visual Studio's C++ build tools on Windows (a C++ compiler elsewhere) for its post-processing; optional |
-| **ARDY**, 4-bit text encoder | about 6 GB | about 12 GB | the same |
-| **ARDY**, full text encoder | about 17 GB | about 23 GB | access to Meta's Llama 3 on Hugging Face |
+| **ARDY** (the default), 8-bit text encoder | about 9.5 GB | about 15 GB | Visual Studio's C++ build tools on Windows (a C++ compiler elsewhere) for its post-processing; optional |
+| **ARDY**, 4-bit text encoder | about 6.2 GB | about 12 GB | the same |
+| **Kimodo** | about 8 GB | about 12 GB | |
+
+The **text encoder** (the part reading your prompt: Llama 3 8B) takes most of the video memory: that is what decides which model fits your GPU. The preferences show what each setting needs next to your GPU's memory, and pick ARDY's text encoder for your GPU until you choose one.
 
 - An internet connection for the install, and Blender's **Allow Online Access** on (**Edit > Preferences > System > Network**).
 
@@ -58,12 +56,12 @@ To update, install the new zip the same way. Your models stay installed.
 
 ## Installing a model
 
-The models aren't part of the extension: the add-on installs the one you choose, on your request, from its official sources. Open **Edit > Preferences > Add-ons > Interpose**. Each model is listed with what it supports (text prompt, key poses, prompt segments, longest motion...).
+The models aren't part of the extension: the add-on installs the one you choose, on your request, from its official sources. Open **Edit > Preferences > Add-ons > Interpose** and choose the model in **Backend** (ARDY by default): its settings and its setup are shown below, with what it supports (text prompt, key poses, prompt segments, longest motion...). One model is loaded on the GPU at a time.
 
-1. Click **Install** on a model. A dialog shows what it downloads, from where, how much, and the licences: read them, they apply to you (see [Licences](#licences)). Confirm.
-2. The install runs in the background with its progress, a few minutes for several GB: its own Python and environment (with [uv](https://github.com/astral-sh/uv), downloaded once), its packages (the right PyTorch build for your GPU), its weights. **Cancel** stops it; **Resume Install** goes on where it stopped, after a failure too.
-3. **Check Setup** says what is ready and what isn't, each problem with its fix: the environment, the packages, the GPU (PyTorch can use it, enough video memory), the weights.
-4. Choose the model to use with **Use** (or **Backend**). One model is loaded on the GPU at a time.
+1. **Check the video memory line** under the model's settings: "Needs about 9.5 GB of video memory, the GPU has 24 GB". With ARDY, choose its text encoder first: **8-bit** or **4-bit**, each with the memory it needs; one marked with a warning icon doesn't fit your GPU. Installing a setting that doesn't fit is possible (the install dialog warns), but the model may fail to load or run very slowly.
+2. Click **Install**. A dialog shows what it downloads, from where, how much, and the licences: read them, they apply to you (see [Licences](#licences)). Confirm.
+3. The install runs in the background with its progress, a few minutes for several GB: its own Python and environment (with [uv](https://github.com/astral-sh/uv), downloaded once), its packages (the right PyTorch build for your GPU), its weights. **Cancel** stops it; **Resume Install** goes on where it stopped, after a failure too.
+4. **Check Setup** says what is ready and what isn't, each problem with its fix: the environment, the packages, the GPU (PyTorch can use it, enough video memory), the weights.
 
 Where things go:
 
@@ -72,7 +70,7 @@ Where things go:
 - **Existing Environment**: use a Python environment where the model is installed already (its Python executable), instead of installing it.
 - **Remove** (the bin) deletes the model's environment and the weights installed with it; its weights in the Hugging Face cache too if you tick it, unless another model needs them. **Repair** makes the environment again and completes the weights.
 
-**Gated weights (Hugging Face sign-in).** Kimodo and ARDY's default text encoder need no account. Only ARDY's **Full** text encoder uses Meta's Llama 3 8B Instruct as Meta publishes it, which you must ask access to:
+**Gated weights (Hugging Face sign-in).** No model needs an account by default. Only ARDY's **Full** text encoder (shown with the **Developer** option) uses Meta's Llama 3 8B Instruct as Meta publishes it, which you must ask access to:
 
 1. Make a Hugging Face account and request access on [Llama 3's page](https://huggingface.co/meta-llama/Meta-Llama-3-8B-Instruct) (**Request Access** in the check opens it), and wait for it to be granted.
 2. Click **Sign In**: a terminal opens running Hugging Face's own sign-in. Sign in there yourself (from the browser, or with a token you paste there).
@@ -82,13 +80,14 @@ The add-on never asks for, reads, stores or sends your token: Hugging Face's lib
 
 **The models:**
 
-- **Kimodo** (NVIDIA): generates up to 10 s per prompt, at 30 fps. Installed from [Aero-Ex's fork](https://github.com/Aero-Ex/kimodo), which runs on Windows without a compiler and comes with a 4-bit text encoder (about 5 GB of video memory instead of 17, no gated weights). **Model**: **SOMA, v1.1** (the default) or **SOMA, v1**.
-- **ARDY** (NVIDIA): generates window by window (2 s at a time), with no length limit, about a second for 5 s once loaded. **Model**: **SOMA, 30 fps** or **Core, 20 fps** (its own 27-joint skeleton). **Text Encoder**: **8-bit** (the default: 8 GB of video memory, loads in a few seconds), **4-bit** (4.7 GB, the motion a little further from the full one's) or **Full** (about 15 GB, a minute to load, gated). Without a C++ compiler it installs without its post-processing, and follows the key poses less exactly: install Visual Studio's C++ build tools (the "Desktop development with C++" workload), then **Repair**.
+- **ARDY** (NVIDIA, the default): generates window by window (2 s at a time), with no length limit, about a second for 5 s once loaded, at 30 fps. **Text Encoder**: **8-bit** (9.5 GB of video memory in all, loads in a few seconds) or **4-bit** (6.2 GB, the motion a little further from the full one's). Without a C++ compiler it installs without its post-processing, and follows the key poses less exactly: install Visual Studio's C++ build tools (the "Desktop development with C++" workload), then **Repair**.
+- **Kimodo** (NVIDIA): generates up to 10 s per prompt, at 30 fps, in about 3 s once loaded. Installed from [Aero-Ex's fork](https://github.com/Aero-Ex/kimodo), which runs on Windows without a compiler and comes with a 4-bit text encoder (no gated weights).
+- **Developer** (at the bottom of the preferences) also shows the variants kept for comparisons: Kimodo's v1 model, ARDY's Core checkpoint (its own 27-joint skeleton, 20 fps) and its **Full** text encoder (16.5 GB, a minute to load, gated).
 - After changing a model's setting, or updating the add-on, the header may say **Weights missing** or **Packages missing**: **Install** gets them (seconds when the weights are already there).
 
 ## Setting up a rig
 
-Choose your character as the **Target** at the top of the **Retarget** panel (Interpose tab). That's all for most rigs: as soon as it is chosen, its **rig profile** is set up (the Generate panel says how).
+Select your character's armature: the active armature is the character Interpose works on. That's all for most rigs: as soon as it is selected, its **rig profile** is set up (the Generate panel says how). When it isn't, the animation editors' header says so in place of **Generate** ("rig not set up", "rig setup incomplete", "the rig check failed"), with **Set Up Rig...**, which opens the **Rig Setup** panel right there; the same panel is in the 3D Viewport's sidebar (`N`, Interpose tab).
 
 - **Recognized rigs**: **Rigify**, **Auto-Rig Pro** and **CloudRig** get their preset, with their FK controls, IK/FK switches and IK snap.
 - **Skeletons** animated directly, without controls (Mixamo, Unreal's mannequin, SMPL, VRM, Daz, Character Creator, a mocap or BVH import...), are recognized from their bone names and hierarchy. An FBX import standing Y-up, or a skeleton facing +Y, is fine.
@@ -102,7 +101,7 @@ Choose your character as the **Target** at the top of the **Retarget** panel (In
 
 ## Generating the in-betweens
 
-1. **Choose the character** as the **Target** (see above).
+1. **Select the character** and enter **Pose Mode**: the animation editors' header shows **Generate** once the rig is set up (see above), and says what's missing otherwise.
 2. **Key your poses** with the rig's controls. Any keyframe type works except **Generated**: Keyframe, Breakdown, Extreme... A frame is a key pose as soon as one of the profile's controls has a key there.
 3. In the **Generate** panel (or the animation editors' header), write a **prompt**, what the character does ("A person walks forward and waves"), and choose a **seed**.
 4. Click **Generate**. The panel and the status bar show the progress: the model's own steps, then the keys being written. **Esc** or the cancel button stops it, until the keys are being written (a few seconds; Blender stays responsive, you can look around but not edit).
@@ -124,7 +123,7 @@ The first generation starts the model (about 20 s; the header says **Starting**,
 A character can follow several prompts one after the other: "walks forward" for 3 s, then "turns left and waves" for 2 s... Each **segment** has a start, an end, a prompt and a seed. Segments follow each other with no gap, like a track; your key poses stay constraints inside them.
 
 - **The first generation makes segment 1**; **Add Prompt Segment** (the **+** in the Generate panel) makes it too before generating, and adds the next ones at the end of the track (2 s, no prompt yet). The panel shows the **active** segment (its prompt, seed, start and end); the arrows go to the previous or next one; **−** removes it (the one before takes its frames); the split button cuts the segment under the current frame in two.
-- **The bands** at the bottom of the **Dope Sheet**, the **Timeline** and the **Graph Editor** show the panel's character, then the other selected characters with segments. A band shows each prompt, its frames and seed, your key poses (small diamonds) and the transitions. A hatched segment hasn't been generated, or was edited since. **View > Show Prompt Segments** (or the eye in the header) hides them.
+- **The bands** at the bottom of the **Dope Sheet**, the **Timeline** and the **Graph Editor** show the panel's character (before its first segment, a band with only its name and a **+** to add one), then the other selected characters with segments. A band shows each prompt, its frames and seed, your key poses (small diamonds) and the transitions. A hatched segment hasn't been generated, or was edited since. **View > Show Prompt Segments** (or the eye in the header) hides them.
 - **With the mouse**, like NLA strips: **click** a segment to make it active (a click on a name makes that character the panel's), **drag** a boundary to move it (the neighbour adapts) or drag a segment to move both its boundaries; **Esc** or a right click cancels. **Double click** opens the segment's prompt, seed and frames; **right click** opens its menu: Edit, Split at Current Frame, Add, Remove, Regenerate Segment, Generate Whole Track. **+** after the track adds a segment. Each change is one undo step.
 - **The animation editors' header** shows the model's state (with a start button when it isn't loaded) and **Generate**, or the progress bar and its cancel button while generating. The **Interpose** menu next to it has the rest: generate, regenerate the active segment, edit, add, split or remove a segment, Clear Generated Keys, start or stop the model, its errors, the preferences.
 - **Generate** in the header (or **Generate Whole Track**) generates the whole track at once, with the model's own transitions between the segments. Kimodo generates up to 10 s per segment, the track can be longer; ARDY changes prompt at each boundary, with no length limit. Each segment lasts 0.5 s at least.
@@ -146,29 +145,16 @@ A character can follow several prompts one after the other: "walks forward" for 
 - **The header says "not set up", "Weights missing" or "Packages missing"**: open the preferences, **Check Setup**, and follow the fix shown for each problem (usually **Install** or **Repair**).
 - **The install fails right away**: Blender's **Allow Online Access** must be on (Preferences > System > Network). Look at the install log (the log button next to the model); **Resume Install** goes on where it stopped.
 - **The check says a gated repository needs access, or that the sign-in expired**: request access on the repository's page, then **Sign In** (see [Installing a model](#installing-a-model)), then **Install** again.
-- **Not enough video memory**: close other applications using the GPU, stop the other model, use ARDY's 8-bit or 4-bit text encoder, or Kimodo.
+- **Not enough video memory**: close other applications using the GPU, stop the other model, or choose ARDY's 4-bit text encoder (then **Install**: it downloads that encoder).
 - **The check says PyTorch can't use the GPU**: update the NVIDIA driver. An RTX 50 series GPU gets a PyTorch build for it (CUDA 12.8) at the install; after changing the GPU, **Repair**.
 - **Generate says the rig has a problem**: the Rig Setup panel lists what **Check Rig** found, each with its role. Fix the profile, or the rig, and run **Check Rig** again.
 - **The character doesn't move, or only some limbs move**: check that the profile's roles are found (Rig Setup panel) and that your key poses are on the profile's controls. On Rigify, a limb in IK whose IK/FK switch is animated between key poses needs a key pose on the frames where it switches.
 - **A pose came out wrong on one frame**: key that frame yourself (it becomes a key pose), or regenerate the segment with another seed.
 - **The model doesn't start**: the Interpose menu in the animation editors shows its last errors; the console (Window > Toggle System Console on Windows) has the details. Please include them in a bug report.
 
-## Retargeting between two armatures
+## Files from older versions
 
-The **Retarget** panel copies an animation bone by bone from a *source* armature to a *target* armature, correcting the orientation differences between their rest poses and scaling the root motion to the target's size, and bakes it as keys on the target.
-
-1. **Choose the armatures**: **Target** (the one that receives the animation), then **Source** (the one that holds it). The setup is stored on the target object, so each character keeps its own.
-2. **Build the bone list**: **Set Up Bone List** lists every source bone and proposes a target bone by name (exact match first, then partial; a target bone is never used twice). Or **Import from JSON**.
-3. **Review each row**: the target bone (empty: the source bone is ignored); **Roll** (the bones point the same way but twist differently) or **Offset** (the full rotation between the rest poses); the translation button for the bones carrying the root motion (usually `Root` and `Hips`).
-4. **Translation Scale**: **Auto** computes the ratio of the two rigs' heights (check the heights it reports), or type your own.
-5. **Retarget** bakes the animation on the target over the scene's frame range.
-
-- **Record Correction**: when an offset is almost right, select the row, click it, rotate the target bone by hand, then **Finish Recording**: the difference is applied on top. **Update Correction** adds to it, **X** clears it.
-- **Snap Active Bone** / **Snap Full Pose** align the target to the source on the current frame, to tune the setup before baking (Pose Mode).
-- **Export to JSON** / **Import from JSON** save and load the bone list (names, offset modes, translation, corrections). The translation scale isn't saved: it depends on the two rigs.
-- With a Rigify target, match the **FK** controls and set the limbs to FK.
-- Retargeting scales the root motion, but can't remove foot sliding between legs of very different proportions.
-- Files saved by older versions (one setup per scene) are moved onto their target armature when opened. Files saved when the add-on was called **Retargetor** are brought up to date when opened (save them again with Interpose); a rig linked from a library gets it when its own file is opened and saved.
+Files saved when the add-on was called **Retargetor** are brought up to date when opened (save them again with Interpose); a rig linked from a library gets it when its own file is opened and saved. The manual bone list of the first versions (the Retarget panel, removed in 0.1.0) is no longer used.
 
 ## Licences
 
@@ -199,7 +185,7 @@ What this means:
 The add-on's code is plain Python; the models run in worker processes with their own Python and talk to Blender over JSON lines, so a new model is a folder in `backends/` (see `backends/base.py`). [CLAUDE.md](CLAUDE.md) describes each file and the architecture rules, [ROADMAP.md](ROADMAP.md) the phases and decisions, [DESIGN.md](DESIGN.md) the data model.
 
 - Tests: `python tests/run_tests.py` (see the file for its arguments: the spike outputs, a Kimodo environment, real rigs).
-- The core can be used from scripts, without the scene properties: `core.retarget.snap.Retargeter(source, target, pairs, translation_scale)` snaps (`snap_pose`) or bakes (`bake(scene, view_layer, frames)`) a list of `BonePair`s, and `core.profile.compose(profile, joint_map, direction)` builds those pairs from a rig profile and a skeleton's role → joint map.
+- The core can be used from scripts, without the scene properties: `core.retarget.snap.Retargeter(source, target, pairs, translation_scale)` snaps (`snap_pose`) or bakes (`bake(scene, view_layer, frames)`) a list of `BonePair`s from one armature to another, and `core.profile.compose(profile, joint_map, direction)` builds those pairs from a rig profile and a skeleton's role → joint map.
 - Package: `blender --command extension build` in the repository's folder.
 
 ## Author

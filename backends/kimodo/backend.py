@@ -19,8 +19,7 @@ class INTERPOSE_KimodoSettings(PropertyGroup):
 class KimodoBackend(Backend):
     id = "kimodo"
     label = "Kimodo"
-    description = (f"NVIDIA Kimodo: text prompt and key poses, up to {joints.MAX_DURATION:g} s at a time "
-                   "(needs a CUDA GPU with 8 GB)")
+    description = f"NVIDIA Kimodo: text prompt and key poses, up to {joints.MAX_DURATION:g} s at a time"
     capabilities = Capabilities(prompt=True, seed=True, max_duration=joints.MAX_DURATION,
                                 native_fps=joints.MODEL_FPS, min_key_poses=0, partial_poses=True,
                                 prompt_segments=True,
@@ -33,8 +32,10 @@ class KimodoBackend(Backend):
     def settings_class(self):
         return INTERPOSE_KimodoSettings
 
-    def draw_settings(self, layout, settings):
-        layout.prop(settings, "model")
+    def draw_settings(self, layout, settings, developer=False, gpu_memory_gb=None):
+        # One model for animators: v1 stays for comparisons
+        if developer or settings.model != joints.DEFAULT_MODEL:
+            layout.prop(settings, "model")
 
     def requirements(self, machine, settings):
         return install.requirements(machine, settings.model if settings is not None else None)

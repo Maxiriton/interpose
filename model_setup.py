@@ -19,6 +19,7 @@ from bpy.types import Operator
 from .backends import process, registry
 from .backends.setup import checks, installer, machine as machine_info, paths, signin
 from .backends.setup import weights as weights_status
+from .backends.setup.spec import vram_fits
 from .preferences import ADDON_ID, active_backend, backend_settings, get_preferences, setup_settings
 
 # backend id -> Installer (kept once finished, for its result)
@@ -67,6 +68,27 @@ def environment_python(context, backend):
 
 def requirements_for(context, backend):
     return backend.requirements(machine(), backend_settings(context, backend))
+
+
+def gpu_memory_gb():
+    """The NVIDIA GPU's video memory in GB, or None without one"""
+    gpu = machine().gpu
+    return gpu.memory_mb / 1024 if gpu is not None else None
+
+
+def vram_status(context, backend):
+    """(message, enough) on the video memory the model needs with its settings against the GPU's, or None for a
+    model without a GPU need"""
+    requirements = requirements_for(context, backend)
+    if requirements is None or not requirements.cuda:
+        return None
+    memory, need = gpu_memory_gb(), requirements.min_vram_gb
+    if memory is None:
+        return "No NVIDIA GPU found: the model can't run on this computer", False
+    if not vram_fits(need, memory):
+        return (f"Needs about {need:g} GB of video memory, the {machine().gpu.name} has {memory:.0f} GB: it may fail "
+                f"to load or run very slowly"), False
+    return f"Needs about {need:g} GB of video memory, the GPU has {memory:.0f} GB", True
 
 
 def installing(backend):
@@ -309,6 +331,11 @@ class INTERPOSE_OT_ModelInstall(Operator):
         requirements = requirements_for(context, backend)
         layout_ = layout_for(context, backend)
         col = self.layout.column(align=True)
+        status = vram_status(context, backend)
+        if status is not None and not status[1]:
+            for i, line in enumerate(wrap(status[0] + ". A lighter setting may fit; you can install anyway.", 100)):
+                col.label(text=line, icon='ERROR' if i == 0 else 'BLANK1')
+            col.separator()
         col.label(text=f"Into {layout_.backend_dir}", icon='FILE_FOLDER')
         col.label(text=f"Python {requirements.python} and its packages: about {_gb(requirements.disk_gb)}",
                   icon='SCRIPTPLUGINS')
@@ -494,18 +521,35 @@ class INTERPOSE_OT_ModelSignIn(Operator):
         return {'FINISHED'}
 
 
-class INTERPOSE_OT_ModelUse(Operator):
-    """Make this model the one generating the motion"""
-    bl_idname = "interpose.model_use"
-    bl_label = "Use This Model"
+class INTERPOSE_OT_BackendSetting(Operator):
+    """Change one of the model's settings"""
+    bl_idname = "interpose.backend_setting"
+    bl_label = "Model Setting"
+    bl_options = {'INTERNAL'}
 
     backend_id: StringProperty(options={'SKIP_SAVE', 'HIDDEN'})
+    name: StringProperty(options={'SKIP_SAVE', 'HIDDEN'})
+    value: StringProperty(options={'SKIP_SAVE', 'HIDDEN'})
+
+    @classmethod
+    def description(cls, context, properties):
+        backend = _backend(properties.backend_id)
+        settings = backend_settings(context, backend) if backend is not None else None
+        prop = settings.bl_rna.properties.get(properties.name) if settings is not None else None
+        item = prop.enum_items.get(properties.value) if prop is not None and prop.type == 'ENUM' else None
+        return item.description if item is not None else cls.__doc__
 
     def execute(self, context):
-        prefs = get_preferences(context)
-        if prefs is None or _backend(self.backend_id) is None:
+        backend = _backend(self.backend_id)
+        settings = backend_settings(context, backend) if backend is not None else None
+        if settings is None or self.name not in settings.bl_rna.properties:
             return {'CANCELLED'}
-        prefs.backend = self.backend_id
+        try:
+            setattr(settings, self.name, self.value)
+        except (TypeError, ValueError) as e:
+            self.report({'ERROR'}, str(e))
+            return {'CANCELLED'}
+        context.preferences.is_dirty = True
         return {'FINISHED'}
 
 
@@ -625,15 +669,14 @@ def draw_worker(col, backend):
         col.label(text=line, icon='ERROR')
 
 
-def draw_backend(layout, context, prefs, backend, active):
+def draw_backend(layout, context, prefs, backend):
+    """The chosen backend's box: what it supports, its settings, its environment and setup, its worker"""
     box = layout.box()
     header = box.row(align=True)
-    header.label(text=backend.label, icon='RADIOBUT_ON' if active else 'RADIOBUT_OFF')
+    header.label(text=backend.label)
     problem = setup_problem(context, backend)
     if backend.installable:
         header.label(text=problem or "Ready", icon='ERROR' if problem and problem != "Installing" else 'NONE')
-    if not active:
-        header.operator("interpose.model_use", text="Use").backend_id = backend.id
     col = box.column(align=True)
     for line in wrap(backend.description, 100):
         col.label(text=line)
@@ -649,7 +692,10 @@ def draw_backend(layout, context, prefs, backend, active):
         if not managed:
             col.prop(setup, "python")
         if settings is not None:
-            backend.draw_settings(col, settings)
+            backend.draw_settings(col, settings, prefs.developer, gpu_memory_gb())
+        status = vram_status(context, backend)
+        if status is not None:
+            col.label(text=status[0], icon='CHECKMARK' if status[1] else 'ERROR')
         current = installers.get(backend.id)
         if current is not None:
             _draw_installer(col, backend, current)
@@ -679,9 +725,8 @@ def draw_backend(layout, context, prefs, backend, active):
         if run is not None and run.python == environment_python(context, backend):
             _draw_checks(box.column(align=True), backend, run)
     elif settings is not None:
-        backend.draw_settings(box.column(), settings)
-    if active:
-        draw_worker(box.column(align=True), backend)
+        backend.draw_settings(box.column(), settings, prefs.developer, gpu_memory_gb())
+    draw_worker(box.column(align=True), backend)
 
 
 def draw_models(layout, context, prefs):
@@ -696,10 +741,7 @@ def draw_models(layout, context, prefs):
     if not bpy.app.online_access:
         col.label(text="Online access is off (Preferences > System > Network): models can't be installed.",
                   icon='ERROR')
-    current = active_backend(context)
-    for backend in registry.visible(prefs.developer):
-        draw_backend(layout, context, prefs, backend.configured(backend_settings(context, backend)),
-                     backend.id == current.id)
+    draw_backend(layout, context, prefs, active_backend(context))
 
 
 classes = (
@@ -708,8 +750,8 @@ classes = (
     INTERPOSE_OT_ModelCheck,
     INTERPOSE_OT_ModelRemove,
     INTERPOSE_OT_ModelSignIn,
-    INTERPOSE_OT_ModelUse,
     INTERPOSE_OT_ModelOpenFolder,
+    INTERPOSE_OT_BackendSetting,
 )
 
 
