@@ -230,13 +230,31 @@ Branch `claude/phase8-release-554619`: version 0.1.0, published on GitHub Releas
 - [x] Fewer model choices: ARDY by default, its 8-bit or 4-bit text encoder with the video memory each needs (chosen for the GPU until the user picks one), the other variants behind Developer, a warning before installing a setting the GPU can't hold.
 - [x] The user's interface pass before publishing: the character is the active armature; the header offers Generate in Pose Mode on a rig set up, and otherwise says what's missing with Set Up Rig (the Rig Setup panel as a popup); the Retarget panel and the manual bone list removed; the preferences show only the chosen backend; a lone "+" on the character's band before its first segment.
 
+### Phase 9: trajectory control
+
+The character's path on the ground drawn or edited in the viewport, and the motion generated along it. Kimodo takes 2D root paths and waypoints, ARDY root paths and waypoints; the interpolation backend none. Before the hands (the user's order, 2026-11-20). Its plan chooses among:
+
+- [ ] A backend's capability saying which path constraints it takes (a dense path, waypoints with or without their time), converted in `backends/shared/` like the poses.
+- [ ] The path stored on the character in Blender conventions (Z-up, meters, frames): a curve object, or points on the character's state, with the key poses' root positions on it.
+- [ ] Drawn and edited in the viewport (a curve to draw or a few points to place), shown with the key poses' positions and the generated root's actual path for comparison.
+- [ ] Per prompt segment or for the whole range; what a regenerated segment keeps of it.
+
+### Phase 10: hands
+
+The fingers are never generated today, a limit of the models: Kimodo and ARDY work on SOMA's 30-joint skeleton (the hand ends at the wrist, with two end joints for its orientation), and its 77-joint output fills the fingers with a fixed relaxed pose, the same on every frame; ARDY's Core checkpoint has no fingers at all. The profile has no finger role, so the fingers keep the user's own keys, interpolated by Blender between the key poses. A large piece of work, in its own session; its plan chooses among:
+
+- [ ] Finger roles in the profile (optional, per finger and phalanx), in the presets and found by `core.rig_detect`, with the rig check.
+- [ ] A backend's capability saying whether it generates the fingers, so a model that does (SMPL-X, MANO-based or hand-specific models such as HandX) writes them, and the others leave them alone.
+- [ ] Without such a model: the fingers between key poses made better than Blender's interpolation (a hand pose kept through a grip, eased with the wrist's motion), or a second, hand-only model run after the body's.
+- [ ] The hand's orientation checked on the rigs (the wrist from the model's two end joints).
+
 ### Next version
 
 Left from Phase 5, important but kept for after the first release:
 
-- [ ] Root path drawing (when the backend supports it).
+- [ ] A shorter README that shows what the extension does: a concise description first, then images and animations of the effect (the key poses posed by hand, the motion generated between them, a prompt segment regenerated), the details further down. The images live in the repository (a `docs/` folder kept out of the package by `paths_exclude_pattern`).
 - [ ] Ghost preview of the model's skeleton (nice-to-have).
-- [ ] Clear error messages, progress and cancel (a first version is in Phase 3).
+- [ ] The model's own errors made readable: a worker sends the exception as it is (`OutOfMemoryError: CUDA out of memory...`). Translate the common ones into what to do: video memory full (the 4-bit text encoder, a shorter range, other programs on the GPU), weights missing or damaged (check the install), Hugging Face access refused (sign in, request access). Progress, cancel, the rig and setup checks and the worker's own failures are already covered (Phases 3 to 8).
 - [ ] Less video memory: prompt embeddings cached on disk (a prompt already seen doesn't load the text encoder), the text encoder unloaded once the prompt is encoded, the motion model in fp16 (measured against the reference). Proposed in Phase 7, to measure first.
 - [x] Faster writing for fast or real-time models: compute the controls' values without scene updates (branch `claude/fast-writing`, after Phase 7: ARDY generates 4 s in 0.6 s, the writing took 10). The rig model (`core/retarget/rig_model.py`, DESIGN.md "Writing the keys") finds the rig's rigid relations once per writer and needs a scene update only where a relation isn't rigid: Rigify posed in IK, 120 frames, 2.3 s instead of 9.3 (keys and IK snap); Auto-Rig Pro's Mike and CloudRig's Storm, no update besides the frame change: 3 and 3.7 times faster, the same keys within 1e-5. Found on the way: the IK snap twisted Rigify's IK upper arms and thighs by about 6.5° (each placement through their own constraints turned them further). Left for after the release (the user's decision, 2026-11-12): the items below.
 - [x] A lighter text encoder for ARDY (the user's request after trying it: a minute to load): community builds of the same LLM2Vec, quantized to 8 or 4 bits, not gated. **Text Encoder** setting, 8-bit by default: loaded in about 5 s instead of 76, 8 GB of video memory instead of 15, the motion within a few cm of the full encoder's (DESIGN.md, "Models of the same family").
