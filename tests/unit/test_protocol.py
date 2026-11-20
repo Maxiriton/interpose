@@ -91,6 +91,15 @@ class TestWorker(unittest.TestCase):
         job = self.worker.wait(self.worker.submit("generate", request=request()), timeout=30)
         self.assertTrue(job.finished_ok, job.error)
 
+    def test_error_explained(self):
+        """The handler's explain_error replaces the raw exception; an unknown one stays raw"""
+        job = self.worker.wait(self.worker.submit("generate", request=request("oom")), timeout=30)
+        self.assertEqual(job.state, process.FAILED)
+        self.assertTrue(job.error.startswith("Not enough video memory for Fake"), job.error)
+        self.assertIn("OutOfMemoryError: CUDA out of memory", job.error)
+        job = self.worker.wait(self.worker.submit("generate", request=request("fail")), timeout=30)
+        self.assertEqual(job.error, "RuntimeError: the model failed")
+
     def test_junk_on_stdout_does_not_break_the_protocol(self):
         job = self.worker.wait(self.worker.submit("generate", request=request("print")), timeout=30)
         self.assertTrue(job.finished_ok, job.error)

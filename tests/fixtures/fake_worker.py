@@ -1,7 +1,7 @@
 """A fake backend worker for the protocol tests (tests/unit/test_protocol.py).
 
 Its behaviour depends on the request's prompt:
-    "crash": the process exits; "fail": raises an error; "slow": progresses slowly until cancelled;
+    "crash": the process exits; "fail": raises an error; "oom": runs out of video memory (explained); "slow": progresses slowly until cancelled;
     "print": prints junk on stdout (from Python and from C) before answering; anything else: a motion in
     two chunks, rotating the second joint around Z.
 """
@@ -14,10 +14,18 @@ import time
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")))
 
 from backends import protocol  # noqa: E402
+from backends.shared import errors  # noqa: E402
 from core.skeleton import Joint, Skeleton  # noqa: E402
 
 
+class OutOfMemoryError(RuntimeError):
+    """Named like torch's"""
+
+
 class FakeHandler:
+    def explain_error(self, error):
+        return errors.explain(error, "Fake")
+
     def skeleton(self):
         return Skeleton([Joint("root", None, (0, 0, 1), (0, 0, 1.2)), Joint("arm", "root", (0, 0, 1.2), (0.3, 0, 1.2))],
                         root="root")
@@ -30,6 +38,8 @@ class FakeHandler:
             os._exit(3)
         if request.prompt == "fail":
             raise RuntimeError("the model failed")
+        if request.prompt == "oom":
+            raise OutOfMemoryError("CUDA out of memory. Tried to allocate 2.00 GiB.")
         if request.prompt == "slow":
             for step in range(1000):
                 context.progress(step / 1000, "denoising")
