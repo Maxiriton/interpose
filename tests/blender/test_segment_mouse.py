@@ -133,7 +133,7 @@ def steps():
     # Hover
     yield from move(ui.frame_x(60), y)
     checks.check(segment_draw.hover == ("rig", 1, 'BODY'), f"hover on the second segment ({segment_draw.hover})")
-    yield from move(ui.frame_x(40.5), y)
+    yield from move(ui.frame_x(41), y)
     checks.check(segment_draw.hover == ("rig", 1, 'START'), f"hover on a boundary ({segment_draw.hover})")
 
     # A click on a band selects the segment, and doesn't reach Blender's key selection
@@ -151,7 +151,7 @@ def steps():
     checks.check(rig.interpose.segments_active_index == 2, "and leaves the segments alone")
 
     # Drag a boundary: segment 1 grows, segment 2 shrinks
-    yield from drag(ui.frame_x(40.5), ui.frame_x(50.5), y)
+    yield from drag(ui.frame_x(41), ui.frame_x(51), y)
     yield 0.3
     checks.check(bounds(rig) == [(1, 50), (51, 80), (81, 120)], f"boundary dragged to frame 51 ({bounds(rig)})")
     checks.check(rig.interpose.segments_active_index == 1, "the dragged segment is active")
@@ -164,7 +164,7 @@ def steps():
     yield 0.3
     checks.check(bounds(rig) == [(1, 45), (46, 75), (76, 120)], f"Esc puts the segments back ({bounds(rig)})")
     # The track's end
-    yield from drag(ui.frame_x(120.5), ui.frame_x(110.5), y)
+    yield from drag(ui.frame_x(121), ui.frame_x(111), y)
     yield 0.3
     checks.check(bounds(rig)[-1] == (76, 110), f"the track's end dragged to frame 110 ({bounds(rig)})")
 
@@ -201,7 +201,7 @@ def steps():
     yield from click(ui.frame_x(60), y)
     yield 0.3
     checks.check(rig.interpose.segments_active_index == 1, "click selects a segment in the Graph Editor")
-    yield from drag(ui.frame_x(45.5), ui.frame_x(40.5), y)
+    yield from drag(ui.frame_x(46), ui.frame_x(41), y)
     yield 0.3
     checks.check(bounds(rig)[:2] == [(1, 40), (41, 75)], f"boundary dragged in the Graph Editor ({bounds(rig)})")
 
@@ -211,7 +211,7 @@ def steps():
     keyconfig.preferences.select_mouse = 'RIGHT'
     yield 0.5
     y = ui.band_y()
-    yield from drag(ui.frame_x(40.5), ui.frame_x(35.5), y, 'RIGHTMOUSE')
+    yield from drag(ui.frame_x(41), ui.frame_x(36), y, 'RIGHTMOUSE')
     yield 0.3
     checks.check(bounds(rig)[:2] == [(1, 35), (36, 75)], f"right-click select: right drag moves a boundary ({bounds(rig)})")
     yield from click(ui.frame_x(100), y)

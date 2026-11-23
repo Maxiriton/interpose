@@ -123,13 +123,14 @@ def limbs_in_ik(rig, rig_profile, start, end, key_frames):
 
 def snap_limbs_to_fk(context, rig, by_frame, in_ik, start, end):
     """Snap the FK controls of the limbs in IK to their IK pose on the key frames (user keys, type Keyframe),
-    then switch the limbs to FK. The user's IK keys are kept.
+    then switch the limbs to FK. The user's IK keys are kept, and so are the FK controls that are IK controls too.
     A limb with an IK snap is in FK only while generating (its switch's animation muted, restore_switches puts it
     back): on the key frames its IK controls are keyed as they are (type Keyframe, where they have no user key), so
     its IK pose there stays the user's when the IK controls are snapped to the motion. A limb without IK snap is
     switched for good: an animated switch is keyed in FK on the key frames and the range's ends."""
     scene, view_layer = context.scene, context.view_layer
-    snap_fk_keys(rig, by_frame, scene, view_layer)
+    # An FK control that is also an IK control (CloudRig's FK toe) is part of the IK pose kept: not snapped
+    snap_fk_keys(rig, by_frame, scene, view_layer, keep_ik_pose=True)
     original_frame = scene.frame_current
     try:
         for frame in sorted(by_frame):
@@ -394,14 +395,25 @@ def place_model(model, rig, view_layer, rig_profile=None):
 
 ### Request and result
 
+def _set_switches(rig, limbs, ik):
+    """The limbs' IK/FK switches to IK or FK, of the property's own type (CloudRig's switches are integers)"""
+    for limb in limbs:
+        switch = rig.pose.bones[limb.switch_bone]
+        value = 1.0 - limb.fk_value if ik else limb.fk_value
+        switch[limb.switch_property] = round(value) if isinstance(switch[limb.switch_property], int) else value
+    rig.update_tag()
+
+
 def build_request(context, rig, model, backend, rig_profile, start, end, key_frames, prompt="", seed=None,
-                  keyed=None, segments=None, context_before=None, context_after=None):
+                  keyed=None, segments=None, context_before=None, context_after=None, read_in_ik=None):
     """Snap the model to the rig on each key frame, and on the start frame (the request's origin), and read
     its poses. keyed: {frame: ids of the roles keyed there}, for a backend taking partial poses (None: every
     key pose is whole). segments: prompt segments (core) covering start to end, for a backend generating them in
     one pass (prompt and seed unused). context_before / context_after: (first, last) frames of the motion around
-    the range to send as it plays on the rig, for a backend continuing it (None: none). Returns (GenerationRequest,
-    translation scale rig -> model, retargeting errors)."""
+    the range to send as it plays on the rig, for a backend continuing it (None: none). read_in_ik: {key frame:
+    limbs posed in IK there, switched to FK while generating}: read in IK there, the pose the user made (their FK
+    controls are snapped to it, but an FK control that is an IK control too keeps the user's IK value: CloudRig's
+    FK toe with a foot roll). Returns (GenerationRequest, translation scale rig -> model, retargeting errors)."""
     scene, view_layer = context.scene, context.view_layer
     skeleton = armature_skeleton(model)
     pairs = core_profile.compose(rig_profile, backend.joint_map, core_profile.TO_MODEL)
@@ -419,12 +431,21 @@ def build_request(context, rig, model, backend, rig_profile, start, end, key_fra
         if frames is not None:
             around[side] = list(range(frames[0], frames[1] + 1))
     original_frame = scene.frame_current
+    switched = []
     try:
         for frame in sorted(set(key_frames) | {start} | {f for frames in around.values() for f in frames}):
+            switched = list((read_in_ik or {}).get(frame, ())) if frame in key_frames else []
+            if switched:
+                _set_switches(rig, switched, ik=True)
             scene.frame_set(frame)
             retargeter.snap_pose(view_layer)
             poses[frame] = read_pose(model, skeleton.names, skeleton.root, world=False)
+            if switched:
+                _set_switches(rig, switched, ik=False)
+                switched = []
     finally:
+        if switched:
+            _set_switches(rig, switched, ik=False)
         scene.frame_set(original_frame)
 
     caps = backend.capabilities
@@ -616,7 +637,7 @@ class IkSnapWriter:
             for limb in self.limbs:
                 for frame in self.keyed[limb.name]:
                     scene.frame_set(frame)
-                    offsets.setdefault(limb.name, {})[frame] = ik_offsets(self.rig, [limb])
+                    offsets.setdefault(limb.name, {})[frame] = ik_offsets(self.rig, [limb], context.view_layer)
         finally:
             scene.frame_set(original_frame)
         self.corrections = {}
@@ -773,6 +794,7 @@ class GenerationTask:
         self.ik_writer = None
         self.switches = []  # the IK/FK switches of the limbs in IK, as the user left them (save_switches)
         self.synced = []  # the limbs in IK snapped back to IK after the generation (they have an IK snap)
+        self.read_in_ik = {}  # {key frame: limbs read in IK there} (build_request)
         self.keys_before = None  # generated_keys.snapshot() before the add-on makes user keys (FK snap...)
         self.request = None  # the GenerationRequest sent
         self.frame_messages = 0  # "frames" messages the backend sent for the last request
@@ -878,6 +900,8 @@ class GenerationTask:
             snaps = {frame: limbs for frame, limbs in snaps.items() if limbs}
         from . import model_setup
         self.worker = model_setup.worker_for(context, self.backend)
+        # The key poses of the limbs in IK switched to FK while generating are read in IK (build_request)
+        self.read_in_ik = {frame: [limb for limb in limbs if limb.ik_snap] for frame, limbs in snaps.items()}
         if in_ik:
             # Before anything else changes the rig: the generated motion is written to the FK controls
             self.switches = save_switches(rig, in_ik)
@@ -943,7 +967,8 @@ class GenerationTask:
         keyed = keyed_roles(rig, self.rig_profile, key_frames) if self.partial else None
         request, self.translation_scale, errors = build_request(
             context, rig, model, self.backend, self.rig_profile, chunk.request_start, chunk.write_end, key_frames,
-            chunk.prompt, chunk.seed, keyed, chunk.segments, chunk.context_before, chunk.context_after)
+            chunk.prompt, chunk.seed, keyed, chunk.segments, chunk.context_before, chunk.context_after,
+            self.read_in_ik)
         self.request = request
         self.timings["key poses"] = self.timings.get("key poses", 0.0) + time.perf_counter() - start
         self.errors |= errors

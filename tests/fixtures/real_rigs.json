@@ -1,5 +1,5 @@
 {
-    "about": "Real rigs tested by tests/blender/test_rigs.py. The files are not committed (licences, size): a local JSON maps each file key to its path, given to tests/run_tests.py with --rigs (or INTERPOSE_RIGS). Missing files are skipped.",
+    "about": "Real rigs tested by tests/blender/test_rigs.py. The files are not committed (licences, size): a local JSON maps each file key to its path, given to tests/run_tests.py with --rigs (or INTERPOSE_RIGS). Missing files are skipped. roll: REST IK controls turned on the first key pose (test_rigs.py --roll).",
     "rigs": [
         {
             "file": "mike",
@@ -11,6 +11,7 @@
             "file": "storm",
             "object": "RIG-storm",
             "expect": "CloudRig",
+            "roll": ["ROLL-M-Foot.R"],
             "source": "Storm, https://studio.blender.org/characters/storm (CC-BY, Blender Foundation), storm_v1.1.blend"
         },
         {

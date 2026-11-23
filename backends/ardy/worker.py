@@ -20,7 +20,7 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..",
 
 from backends import protocol  # noqa: E402
 from backends.ardy import models  # noqa: E402
-from backends.shared import convert, messages  # noqa: E402
+from backends.shared import convert, errors, messages  # noqa: E402
 
 BACKEND_ID = "ardy"
 LABEL = "ARDY"
@@ -72,6 +72,15 @@ class ArdyHandler:
     def skeleton(self):
         self._skeleton_layout()
         return self._skeleton
+
+    def explain_error(self, error):
+        hint = ""
+        if errors.kind(error) == errors.OUT_OF_MEMORY:
+            errors.release_gpu_cache()
+            smallest = models.TEXT_ENCODERS["NF4"]
+            if self.text_encoder != smallest:
+                hint = f"choose the {smallest.label} text encoder in the add-on's preferences"
+        return errors.explain(error, LABEL, hint)
 
     def load(self, context):
         if self.model is not None:

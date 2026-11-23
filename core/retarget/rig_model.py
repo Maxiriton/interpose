@@ -41,16 +41,37 @@ class RigModelError(Exception):
     """The rig doesn't fit the model: write through Blender's evaluation"""
 
 
+# Constraints moving a bone as a transform on top of the matrix its basis gives, whatever that basis
+ON_TOP_CONSTRAINTS = {'ARMATURE', 'CHILD_OF'}
+
+
+def _moved_on_top(pose_bone):
+    """True when the bone's own constraints are all transforms on top of its own matrix (CloudRig's FK toe has no
+    parent: an Armature constraint makes it follow the FK or the IK foot)"""
+    active = [c for c in pose_bone.constraints if c.enabled and c.influence > 0.0]
+    return bool(active) and all(c.type in ON_TOP_CONSTRAINTS for c in active)
+
+
 class BlenderPoser:
     """The rig's poses as Blender evaluated them (pose_bone.matrix): needs a scene update after each change"""
 
     def __init__(self, rig):
+        self.rig = rig
         self.pose_bones = rig.pose.bones
 
     def matrix(self, name):
         return self.pose_bones[name].matrix
 
     def set_matrix(self, pose_bone, matrix):
+        """Setting pose_bone.matrix ignores the bone's own constraints: those on top of its own matrix X (the pose
+        is A X) are taken out, from the pose Blender evaluated for its current basis (X' = X A^-1 W), as the
+        rig model does"""
+        if _moved_on_top(pose_bone):
+            own = self.rig.convert_space(pose_bone=pose_bone, matrix=pose_bone.matrix_basis, from_space='LOCAL',
+                                         to_space='POSE')
+            actual = pose_bone.matrix
+            if abs(actual.to_3x3().determinant()) > 1e-12:
+                matrix = own @ actual.inverted() @ matrix
         pose_bone.matrix = matrix
 
 

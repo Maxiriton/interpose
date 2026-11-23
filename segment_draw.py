@@ -56,15 +56,15 @@ class Band:
 
 def band_layout(characters, frame_to_x, ui_scale=1.0, tag_x0=0.0, tag_width=None):
     """[Band] for characters [(name, is the panel's character, [(start frame, end frame)])], bottom to top.
-    frame_to_x: region x of a frame number (a float). A segment spans from half a frame before its start to half
-    a frame after its end. tag_x0: left of the name tags; tag_width(name): their width (default: none)."""
+    frame_to_x: region x of a frame number (a float). A segment spans from its start frame to the frame after its
+    end, like Blender's strips: the boundary between two segments is on the next one's start frame. tag_x0: left of the name tags; tag_width(name): their width (default: none)."""
     bands = []
     for row, (name, target, frames) in enumerate(characters):
         y0 = (BAND_BOTTOM + row * (BAND_HEIGHT + BAND_GAP)) * ui_scale
         width = tag_width(name) if tag_width is not None else 0.0
         band = Band(name, target, y0, y0 + BAND_HEIGHT * ui_scale, tag_x0, tag_x0 + width)
         for index, (start, end) in enumerate(frames):
-            band.bars.append(Bar(index, frame_to_x(start - 0.5), frame_to_x(end + 0.5)))
+            band.bars.append(Bar(index, frame_to_x(start), frame_to_x(end + 1)))
         if target:
             band.add_x0 = (band.bars[-1].x1 if band.bars else band.tag_x1) + ADD_GAP * ui_scale
             band.add_x1 = band.add_x0 + ADD_WIDTH * ui_scale
@@ -342,7 +342,7 @@ def draw_bands():
             _polygon(_clip(outline, x0, band.y1 - stripe, x1, band.y1), _scaled(color, 1.0, dim))
             if bar.index > 0 and transition > 0.0:
                 before = PALETTE[(bar.index - 1) % len(PALETTE)]
-                xt = max(view.view_to_region(item.frame_start - 0.5 - transition, 0.0, clip=False)[0],
+                xt = max(view.view_to_region(item.frame_start - transition, 0.0, clip=False)[0],
                          band.bars[bar.index - 1].x0)
                 _gradient(xt, band.y0, x0, band.y1 - stripe, _scaled(before, 0.55, 0.0), _scaled(color, 0.9, 0.85 * dim))
                 _gradient(xt, band.y1 - stripe, x0, band.y1, _scaled(before, 1.0, dim), _scaled(color, 1.0, dim))

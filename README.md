@@ -15,6 +15,7 @@ Interpose is a Blender extension for animators. You keep your rig, its controls 
 - [Setting up a rig](#setting-up-a-rig)
 - [Generating the in-betweens](#generating-the-in-betweens)
 - [Prompt segments](#prompt-segments)
+- [Writing prompts](#writing-prompts)
 - [Limits](#limits)
 - [Troubleshooting](#troubleshooting)
 - [Files from older versions](#files-from-older-versions)
@@ -103,7 +104,7 @@ Select your character's armature: the active armature is the character Interpose
 
 1. **Select the character** and enter **Pose Mode**: the animation editors' header shows **Generate** once the rig is set up (see above), and says what's missing otherwise.
 2. **Key your poses** with the rig's controls. Any keyframe type works except **Generated**: Keyframe, Breakdown, Extreme... A frame is a key pose as soon as one of the profile's controls has a key there.
-3. In the **Generate** panel (or the animation editors' header), write a **prompt**, what the character does ("A person walks forward and waves"), and choose a **seed**.
+3. In the **Generate** panel (or the animation editors' header), write a **prompt**, what the character does ("A person walks forward and waves"; see [Writing prompts](#writing-prompts)), and choose a **seed**.
 4. Click **Generate**. The panel and the status bar show the progress: the model's own steps, then the keys being written. **Esc** or the cancel button stops it, until the keys are being written (a few seconds; Blender stays responsive, you can look around but not edit).
 
 The result is written on the rig's controls as **Generated** keys, on every frame between your first and last key pose. The generation becomes **prompt segment 1**, shown as a band in the timeline. Frames carrying one of your keys are never written; generating again replaces the Generated keys and keeps yours. The whole generation is one undo step.
@@ -129,6 +130,19 @@ A character can follow several prompts one after the other: "walks forward" for 
 - **Generate** in the header (or **Generate Whole Track**) generates the whole track at once, with the model's own transitions between the segments. Kimodo generates up to 10 s per segment, the track can be longer; ARDY changes prompt at each boundary, with no length limit. Each segment lasts 0.5 s at least.
 - **Regenerate Segment** (the segment's menu, its popup, the Interpose menu, the Generate panel) generates one segment again, with its own prompt and seed, and leaves the rest of the track as it is: only the segment's frames get new Generated keys, one undo step. The model joins the motion around it, so there is no jump at its boundaries. A neighbour never generated (hatched) isn't joined: generate it afterwards, or the whole track. To regenerate between two key poses, split the track there first.
 
+## Writing prompts
+
+Kimodo and ARDY learned from the same motion capture descriptions ([BONES-SEED](https://huggingface.co/datasets/bones-studio/seed)): prompts written like them work best. This follows NVIDIA's own advice for Kimodo.
+
+- **Start with "A person..."**, in English. The subject can carry the style: "An old person...", "A tired person...", "A drunk person...".
+- **One or two actions per prompt.** For a sequence of actions, use one prompt segment for each.
+- **A medium level of detail.** "A person walks." is too vague, and a description of every limb is more than the model can follow.
+- **What the models know**: walking and running, gestures, everyday actions, common objects, video game combat, dancing, and styles such as tired, angry, happy, sad, scared, drunk, injured, stealthy, old or childlike. A specific sport move (a baseball swing) won't come out well.
+- **Each segment's prompt on its own.** The model doesn't read the previous segment's prompt: write "A person walking carrying a box comes to a stop", not "Then they stop".
+- **Agree with your key poses.** A prompt that contradicts them ("jumps" between two poses standing on the same spot) gives a worse motion: the model has to choose between them.
+
+Examples from ARDY's own demo: "A person is walking backwards.", "A person side steps to the right.", "A person is kicking with their right leg.", "A person bows down and then stands upright.", "A young lady walks forward elegantly.". In the same style: "A person picks up a box from the floor with both hands.", "A tired person walks slowly, dragging their feet.", "A person sneaks forward, crouching, looking around.".
+
 ## Limits
 
 - **Fingers are not generated.** Kimodo and ARDY animate SOMA's 30-joint body; the fingers of their 77-joint output are a fixed relaxed pose. The add-on doesn't map fingers, so they keep your own animation (key them as you like, before or after generating).
@@ -145,7 +159,8 @@ A character can follow several prompts one after the other: "walks forward" for 
 - **The header says "not set up", "Weights missing" or "Packages missing"**: open the preferences, **Check Setup**, and follow the fix shown for each problem (usually **Install** or **Repair**).
 - **The install fails right away**: Blender's **Allow Online Access** must be on (Preferences > System > Network). Look at the install log (the log button next to the model); **Resume Install** goes on where it stopped.
 - **The check says a gated repository needs access, or that the sign-in expired**: request access on the repository's page, then **Sign In** (see [Installing a model](#installing-a-model)), then **Install** again.
-- **Not enough video memory**: close other applications using the GPU, stop the other model, or choose ARDY's 4-bit text encoder (then **Install**: it downloads that encoder).
+- **Not enough video memory**: close other applications using the GPU, stop the other model, generate a shorter range, or choose ARDY's 4-bit text encoder (then **Install**: it downloads that encoder).
+- **The model says its weights are missing or damaged, or its environment is missing a package**: **Check Setup** in the preferences, and follow its fix (usually **Repair**). The message's second line is the model's own error, for a bug report.
 - **The check says PyTorch can't use the GPU**: update the NVIDIA driver. An RTX 50 series GPU gets a PyTorch build for it (CUDA 12.8) at the install; after changing the GPU, **Repair**.
 - **Generate says the rig has a problem**: the Rig Setup panel lists what **Check Rig** found, each with its role. Fix the profile, or the rig, and run **Check Rig** again.
 - **The character doesn't move, or only some limbs move**: check that the profile's roles are found (Rig Setup panel) and that your key poses are on the profile's controls. On Rigify, a limb in IK whose IK/FK switch is animated between key poses needs a key pose on the frames where it switches.

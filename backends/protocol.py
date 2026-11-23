@@ -140,6 +140,7 @@ class WorkerLoop:
         skeleton() -> core.skeleton.Skeleton
         load(context)                       load the model (optional: default does nothing)
         generate(request, context)          GenerationRequest; sends frames with context.send_frames
+        explain_error(error) -> str | None  a readable message for a failed request (optional: the raw exception)
     stdin is read by a thread, so a "cancel" arrives while a generation runs; requests are handled one at a
     time, in order. The protocol uses copies of the real stdin and stdout: anything else printed (by the
     model's libraries, even from C code) goes to stderr, so it can't break the protocol.
@@ -167,6 +168,18 @@ class WorkerLoop:
             import msvcrt
             ctypes.windll.kernel32.SetStdHandle(-10, msvcrt.get_osfhandle(0))  # STD_INPUT_HANDLE
         sys.stdin = open(os.devnull, encoding="utf-8")
+
+    def _explain(self, error):
+        """The handler's readable message for error (explain_error, optional), else the raw exception"""
+        explain = getattr(self.handler, "explain_error", None)
+        if explain is not None:
+            try:
+                message = explain(error)
+                if message:
+                    return message
+            except Exception:  # noqa: BLE001 - the raw error is still worth sending
+                traceback.print_exc()
+        return f"{type(error).__name__}: {error}"
 
     def send(self, message):
         with self._lock:
@@ -218,8 +231,7 @@ class WorkerLoop:
                 self.send({"type": "error", "id": request_id, "message": "Cancelled.", "cancelled": True})
             except Exception as e:  # noqa: BLE001 - reported to the add-on, the worker keeps running
                 traceback.print_exc()
-                self.send({"type": "error", "id": request_id, "message": f"{type(e).__name__}: {e}",
-                           "cancelled": False})
+                self.send({"type": "error", "id": request_id, "message": self._explain(e), "cancelled": False})
             finally:
                 self.cancelled.discard(request_id)
 

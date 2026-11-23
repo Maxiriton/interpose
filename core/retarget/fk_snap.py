@@ -38,16 +38,27 @@ def _check_limb(rig_obj, limb):
         raise KeyError(f"The switch bone '{limb.switch_bone}' of the limb '{limb.name}' does not exist in '{rig_obj.name}'.")
 
 
-def snap_fk_pose(rig_obj, limbs, view_layer):
+def ik_pose_controls(limb):
+    """The controls of a limb with an IK snap that make its IK pose: its IK controls, some of them FK controls too
+    (CloudRig's FK toe bends the toes in IK as well)"""
+    if not limb.ik_snap:
+        return set()
+    # Names in the neutral profile (core.profile), items with a bone in the stored one
+    return {getattr(c, "bone", c) for c in limb.ik_controls} | {snap.ik_control for snap in limb.ik_snap}
+
+
+def snap_fk_pose(rig_obj, limbs, view_layer, keep_ik_pose=False):
     """Rotate the FK controls of the limbs so they match the bones they follow, at the current frame.
     The followed orientations are all captured first, then the controls are set one by one, parents first, with
     the limbs switched to FK meanwhile (CloudRig's FK toe changes parent with the switch); the switches are put
-    back afterwards, set_limbs_fk() switches."""
+    back afterwards, set_limbs_fk() switches. keep_ik_pose: an FK control that is also one of the limb's IK
+    controls (ik_pose_controls) is left as it is: it is part of the user's IK pose, which stays."""
     for limb in limbs:
         _check_limb(rig_obj, limb)
 
     pose_bones = rig_obj.pose.bones
-    controls = [pair for limb in limbs for pair in limb.controls]
+    controls = [pair for limb in limbs for pair in limb.controls
+                if not (keep_ik_pose and pair.fk_control in ik_pose_controls(limb))]
     # With the offset their rest poses have: Rigify's FK controls and ORG bones are alike at rest, Auto-Rig Pro's
     # aren't all (its foot control is turned from the foot)
     wanted = {pair.fk_control: (pose_bones[pair.followed_bone].matrix
@@ -143,10 +154,11 @@ def _set_key_type(rig_obj, data_path, frame, keytype):
                 point.type = keytype
 
 
-def snap_fk_keys(rig_obj, limbs_by_frame, scene, view_layer, keytype='KEYFRAME'):
+def snap_fk_keys(rig_obj, limbs_by_frame, scene, view_layer, keytype='KEYFRAME', keep_ik_pose=False):
     """On each frame of {frame: limbs}, snap the FK controls of the limbs to the bones they follow and key their
     rotation with the given type. A quaternion keeps the sign the curve had there, so it doesn't spin the long way
-    from the keys around it. The current frame is restored at the end."""
+    from the keys around it. keep_ik_pose: see snap_fk_pose (those controls are neither snapped nor keyed). The
+    current frame is restored at the end."""
     original_frame = scene.frame_current
     pose_bones = rig_obj.pose.bones
     try:
@@ -155,9 +167,12 @@ def snap_fk_keys(rig_obj, limbs_by_frame, scene, view_layer, keytype='KEYFRAME')
             scene.frame_set(frame)
             before = {pair.fk_control: pose_bones[pair.fk_control].rotation_quaternion.copy()
                       for limb in limbs for pair in limb.controls if pose_bones.get(pair.fk_control) is not None}
-            snap_fk_pose(rig_obj, limbs, view_layer)
+            snap_fk_pose(rig_obj, limbs, view_layer, keep_ik_pose)
             for limb in limbs:
+                kept = ik_pose_controls(limb) if keep_ik_pose else set()
                 for pair in limb.controls:
+                    if pair.fk_control in kept:
+                        continue
                     pb = pose_bones[pair.fk_control]
                     if pb.rotation_mode == 'QUATERNION':
                         q = pb.rotation_quaternion.copy()
@@ -243,17 +258,62 @@ def _ik_target(rig_obj, snap, poser=None):
     return matrix
 
 
-def ik_offsets(rig_obj, limbs):
+def ik_offsets(rig_obj, limbs, view_layer=None):
     """{IK control: offset} of the limbs' FOLLOW controls at the current frame: how the control is posed (the
     user's IK pose, on a key pose) relative to the target the bone it follows gives it (the FK pose), as a matrix
     in the target's space, for snap_ik_pose's `corrections`. Rigify's IK chain is a little shorter than the FK one,
     so on a key pose the IK hand isn't quite where the snapped FK hand is: blending these offsets between the key
-    poses keeps the IK motion from jumping there."""
+    poses keeps the IK motion from jumping there.
+
+    view_layer: a limb whose REST controls aren't at rest on this frame (a foot roll posed on the key pose:
+    CloudRig's ROLL-M-Foot, Auto-Rig Pro's foot roll...) is measured against its own IK chain, with those controls at
+    rest and the limb in IK, as the frames written have them (the pose and the switch put back after). Measured
+    against the FK pose, the roll would count as an offset of the IK foot and be applied on frames where the roll is
+    at rest: the foot would fall flat. Without REST controls moved, the IK chain gives the snapped FK pose: the
+    same measure."""
     for limb in limbs:
         _check_ik_snap(rig_obj, limb)
+    offsets = {}
+    for limb in limbs:
+        offsets.update(_limb_offsets(rig_obj, limb, view_layer))
+    return offsets
+
+
+def _limb_offsets(rig_obj, limb, view_layer):
     pose_bones = rig_obj.pose.bones
-    return {snap.ik_control: _ik_target(rig_obj, snap).inverted() @ pose_bones[snap.ik_control].matrix
-            for limb in limbs for snap in limb.ik_snap if snap.mode == IK_FOLLOW}
+    follow = [snap for snap in limb.ik_snap if snap.mode == IK_FOLLOW]
+
+    def measure():
+        return {snap.ik_control: _ik_target(rig_obj, snap).inverted() @ pose_bones[snap.ik_control].matrix
+                for snap in follow}
+
+    rest = [pose_bones[snap.ik_control] for snap in limb.ik_snap if snap.mode == IK_REST]
+    if view_layer is None or not follow or not rest:
+        return measure()
+    saved = []
+    for pb in rest:
+        path = _rotation_data_path(pb)
+        saved.append((pb, pb.location.copy(), path, tuple(getattr(pb, path)), pb.scale.copy()))
+    switch = pose_bones.get(limb.switch_bone) if limb.switch_bone and limb.switch_property else None
+    switch_value = switch.get(limb.switch_property) if switch is not None else None
+    if not set_rest_controls(rig_obj, [limb]):
+        return measure()
+    try:
+        if switch_value is not None:
+            ik_value = 1.0 - limb.fk_value
+            # Of the property's own type: CloudRig's switches are integers
+            switch[limb.switch_property] = round(ik_value) if isinstance(switch_value, int) else ik_value
+        rig_obj.update_tag()
+        view_layer.update()
+        return measure()
+    finally:
+        for pb, location, path, rotation, scale in saved:
+            pb.location, pb.scale = location, scale
+            setattr(pb, path, rotation)
+        if switch_value is not None:
+            switch[limb.switch_property] = switch_value
+        rig_obj.update_tag()
+        view_layer.update()
 
 
 def _rotation_values(pose_bone):

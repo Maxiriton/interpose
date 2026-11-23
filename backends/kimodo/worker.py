@@ -13,7 +13,7 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..",
 
 from backends import protocol  # noqa: E402
 from backends.kimodo import joints  # noqa: E402
-from backends.shared import convert, messages  # noqa: E402
+from backends.shared import convert, errors, messages  # noqa: E402
 
 BACKEND_ID = "kimodo"
 LABEL = "Kimodo"
@@ -47,6 +47,11 @@ class KimodoHandler:
     def skeleton(self):
         self._soma()
         return self._skeleton
+
+    def explain_error(self, error):
+        if errors.kind(error) == errors.OUT_OF_MEMORY:
+            errors.release_gpu_cache()
+        return errors.explain(error, LABEL)
 
     def load(self, context):
         if self.model is not None:
