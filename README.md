@@ -4,7 +4,7 @@
 
 Interpose is a Blender extension for animators. You keep your rig, its controls and your key poses; a motion model (NVIDIA's Kimodo or ARDY for now, others can be added) generates the in-betweens from a text prompt ("a person walks forward and waves"), and the result comes back as ordinary keys you can edit. It works with Rigify, Auto-Rig Pro and CloudRig rigs, and with skeletons such as Mixamo characters, without any setup; other rigs are set up once.
 
-> **Status:** 0.1.0, the first public version. Tested on Windows 11 with an NVIDIA RTX 3090. Feedback and bug reports are welcome on the [issues page](https://github.com/Maxiriton/interpose/issues).
+> **Status:** 0.1.1. Tested on Windows 11 with an NVIDIA RTX 3090. Feedback and bug reports are welcome on the [issues page](https://github.com/Maxiriton/interpose/issues).
 
 ---
 
