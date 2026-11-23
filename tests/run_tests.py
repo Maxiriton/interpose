@@ -152,6 +152,8 @@ def run_real_rigs(args, env):
             results[name] = None
             continue
         test_args = [rig["object"], rig["expect"]] + ([args.kimodo_python] if args.kimodo_python else [])
+        for bone in rig.get("roll", []):
+            test_args += ["--roll", bone]
         if rig.get("fbx"):
             results[name] = run_blender(args.blender, "test_rigs.py", test_args + ["--fbx", path], env=env)
         else:

@@ -8,6 +8,9 @@
 <expected source>: the preset's name, or "detected" for a skeleton set up by the detection.
 --pose <bone>: also turn that control 20 degrees on both key poses (Rigify's hips control, between the control
 written for the hips and the bone read: it must not be counted twice).
+--roll <bone>: also turn that REST IK control 40 degrees on the first key pose (CloudRig's foot roll): its limb's
+IK foot follows the FK pose on the frames written next to it (the roll isn't taken for an offset of the IK foot),
+and the key pose stays (an FK control that is an IK control too, CloudRig's FK toe, keeps the user's key).
 Checks: chosen as the character, the rig sets itself up; the rig check finds no error; two key poses made with the
 rig's own controls (an IK hand moved where the limb is in IK, else the FK controls turned), then Generate
 In-betweens with the interpolation backend: the key poses stay, the motion goes between them. With Kimodo's
@@ -110,6 +113,44 @@ def pose_key_poses(rig, profile, extra=()):
     return [name for name, _apply in posed] + list(extra)
 
 
+def roll_key_pose(rig, profile, rolls):
+    """Turn each of the `rolls` REST IK controls 40 degrees around X on the first key pose, and key it. Returns
+    [(limb, bone its FOLLOW control follows)] for the limbs in IK"""
+    from interpose.core.retarget.snap import set_rotation
+    scene = bpy.context.scene
+    scene.frame_set(KEY_FRAMES[0])
+    rolled = []
+    for name in rolls:
+        limb = next(l for l in profile.limbs if any(s.ik_control == name and s.mode == 'REST' for s in l.ik_snap))
+        pb = rig.pose.bones[name]
+        set_rotation(pb, pb.rotation_mode, pb.matrix_basis.to_quaternion() @ Euler((math.radians(40), 0.0, 0.0)).to_quaternion())
+        key_bone(pb, KEY_FRAMES[0])
+        bpy.context.view_layer.update()
+        if in_ik(rig, limb):
+            follow = next(s for s in limb.ik_snap if s.mode == 'FOLLOW')
+            rolled.append((limb, follow.followed_bone))
+    return rolled
+
+
+def ik_fk_gap(rig, limb, bone, frame):
+    """How far the bone's head and tail are in IK from where they are in FK on that frame (the switch put back)"""
+    scene = bpy.context.scene
+    switch = rig.pose.bones[limb.switch_bone]
+    value = switch[limb.switch_property]
+    points = []
+    for fk in (False, True):
+        fk_value = round(limb.fk_value) if isinstance(value, int) else limb.fk_value
+        switch[limb.switch_property] = fk_value if fk else value
+        rig.update_tag()
+        scene.frame_set(frame)
+        pb = rig.pose.bones[bone]
+        points.append((rig.matrix_world @ pb.head, rig.matrix_world @ pb.tail))
+    switch[limb.switch_property] = value
+    rig.update_tag()
+    scene.frame_set(frame)
+    return max((points[0][i] - points[1][i]).length for i in range(2))
+
+
 def read_points(rig, profile, frames):
     scene = bpy.context.scene
     names = [b.read_bone for b in profile.roles if b.read_bone]
@@ -129,6 +170,7 @@ def main():
     name, expected = args[0], args[1]
     kimodo_python = args[2] if len(args) > 2 and not args[2].startswith("--") else None
     extra = [args[i + 1] for i, arg in enumerate(args) if arg == "--pose"]
+    rolls = [args[i + 1] for i, arg in enumerate(args) if arg == "--roll"]
     checks = bootstrap.Checks(f"test_rigs {name}")
     bootstrap.register_addon()
     bootstrap.set_backend("interpolate", developer=True)
@@ -155,6 +197,7 @@ def main():
 
     posed = pose_key_poses(rig, rig_profile, extra)
     print(f"FINDING key poses made with {', '.join(posed)}")
+    rolled = roll_key_pose(rig, rig_profile, rolls)
     before = read_points(rig, rig_profile, KEY_FRAMES)
     halfway = (KEY_FRAMES[0] + KEY_FRAMES[1]) // 2
     scene.frame_set(KEY_FRAMES[0])
@@ -178,6 +221,12 @@ def main():
     print(f"FINDING the left hand halfway: {(mid - a).length * 100:.1f} cm from the first key pose, "
           f"{(mid - b).length * 100:.1f} cm from the second ({(b - a).length * 100:.1f} cm apart)")
     checks.check((mid - a).length > 0.02 and (mid - b).length > 0.02, "the left hand moves between the key poses")
+
+    for limb, followed in rolled:
+        gap = ik_fk_gap(rig, limb, followed, KEY_FRAMES[0] + 1)
+        print(f"FINDING {limb.name} rolled on frame {KEY_FRAMES[0]}: on the next frame, {followed} in IK "
+              f"{gap * 100:.2f} cm from its FK pose")
+        checks.below(gap * 100, 1.0, f"{limb.name}: the IK foot follows the FK pose next to a rolled key pose (cm)")
 
     # The writers' rig model gives the keys Blender's evaluation gives
     # The file is opened again: look the objects up again
