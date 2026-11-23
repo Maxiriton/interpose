@@ -15,16 +15,20 @@ from .backends import registry
 
 ADDON_ID = __package__
 
-# Enum items are kept alive here: Blender doesn't keep the strings returned by an items callback
-_backend_items = []
+# Enum items, made once and kept alive here ({developer: items}): Blender doesn't keep the strings returned by an
+# items callback, and still reads those of a previous call (the button's label while its menu is open). Making them
+# again on each call freed them: the button showed no label.
+_backend_items = {}
 
 
 def backend_items(self, _context):
-    _backend_items.clear()
-    for number, backend in enumerate(registry.BACKENDS):
-        if self.developer or not backend.developer_only:
-            _backend_items.append((backend.id, backend.label, backend.description, number))
-    return _backend_items
+    developer = bool(self.developer)
+    items = _backend_items.get(developer)
+    if items is None:
+        items = _backend_items[developer] = [
+            (backend.id, backend.label, backend.description, number)
+            for number, backend in enumerate(registry.BACKENDS) if developer or not backend.developer_only]
+    return items
 
 
 def _backend_changed(self, _context):
@@ -34,6 +38,14 @@ def _backend_changed(self, _context):
             worker = registry.existing_worker(backend.id)
             if worker is not None and not worker.busy:
                 registry.stop(backend.id)
+
+
+def _developer_changed(self, _context):
+    # A backend made for testing, hidden again: the first visible one is chosen (the menu would show none)
+    if not self.developer:
+        visible = [backend.id for backend in registry.BACKENDS if not backend.developer_only]
+        if visible and self.backend not in visible:
+            self.backend = visible[0]
 
 
 def _settings_classes():
@@ -58,7 +70,7 @@ class INTERPOSE_Preferences(AddonPreferences):
 
     backend: EnumProperty(name="Backend", items=backend_items, update=_backend_changed,
                           description="Motion model generating the in-betweens")
-    developer: BoolProperty(name="Developer", default=False,
+    developer: BoolProperty(name="Developer", default=False, update=_developer_changed,
                             description="Also list the backends made for testing")
     models_folder: StringProperty(name="Models Folder", subtype='DIR_PATH', default="",
                                   description="Folder where the models' environments are installed (empty: the "

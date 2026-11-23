@@ -75,6 +75,24 @@ class OperatorLayout(LabelLayout):
         return super().prop(data, name, **kwargs)
 
 
+def check_backend_menu(checks, context, prefs):
+    """The backend menu's items stay the same objects from one call to the next (Blender still reads the strings
+    of the previous call: the button's label while its menu is open), and a backend made for testing, hidden
+    again, gives way to the first visible one (the menu would show none)"""
+    from interpose import preferences
+    first = preferences.backend_items(prefs, context)
+    labels = [item[1] for item in first]
+    second = preferences.backend_items(prefs, context)
+    checks.check(second is first and [item[1] for item in second] == labels,
+                 "the backend menu's items are kept from one call to the next")
+    chosen = prefs.backend
+    prefs.backend = "interpolate"
+    prefs.developer = False
+    checks.check(prefs.backend == "ardy", f"developer off: the hidden backend gives way to ARDY ({prefs.backend!r})")
+    prefs.developer = True
+    prefs.backend = chosen
+
+
 def check_model_choices(checks, context, prefs, model_setup, registry):
     """Fewer choices for animators: ARDY first, its 8-bit or 4-bit text encoder with the video memory each needs, the
     variants behind the Developer option; the encoder the GPU fits when never chosen"""
@@ -154,6 +172,7 @@ def main(scratch, kimodo_python=None):
     checks.check(kimodo.label in labels and not others,
                  f"only the chosen backend is drawn ({kimodo.label}; others drawn: {others})")
     check_model_choices(checks, context, prefs, model_setup, registry)
+    check_backend_menu(checks, context, prefs)
     header = type("Header", (), {"layout": None})()
     errors = []
     header.layout = CheckingLayout(errors)
