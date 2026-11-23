@@ -119,12 +119,12 @@ def check_layout(checks):
     characters = [("rig", True, [(1, 40), (41, 80)]), ("other", False, [(1, 120)])]
     bands = sd.band_layout(characters, lambda frame: 10.0 * frame, 2.0, tag_x0=0.0, tag_width=lambda name: 30.0)
     checks.check([(b.y0, b.y1) for b in bands] == [(44.0, 112.0), (120.0, 188.0)], "bands stacked, UI scale 2")
-    checks.check([(bar.x0, bar.x1) for bar in bands[0].bars] == [(5.0, 405.0), (405.0, 805.0)],
-                 "segments from half a frame before to half a frame after")
+    checks.check([(bar.x0, bar.x1) for bar in bands[0].bars] == [(10.0, 410.0), (410.0, 810.0)],
+                 "segments from their start frame to the frame after their end")
     y = 60.0
     checks.check(sd.hit_test(bands, 200.0, y, 2.0) == ("rig", 0, 'BODY'), "body of the first segment")
     checks.check(sd.hit_test(bands, 412.0, y, 2.0) == ("rig", 1, 'START'), "boundary: start of the next segment")
-    checks.check(sd.hit_test(bands, 800.0, y, 2.0) == ("rig", 1, 'END'), "track's end")
+    checks.check(sd.hit_test(bands, 808.0, y, 2.0) == ("rig", 1, 'END'), "track's end")
     checks.check(sd.hit_test(bands, 20.0, y, 2.0) == ("rig", None, 'TAG'), "name tag")
     checks.check(sd.hit_test(bands, 900.0, y, 2.0) is None, "after the track")
     checks.check(sd.hit_test(bands, 900.0, 150.0, 2.0) == ("other", 0, 'BODY'), "second band")
