@@ -1,6 +1,6 @@
 """The extension's package, installed in a Blender whose user folder is a scratch one: it installs, registers, lists
 its backends, generates with the interpolation backend (its worker started from the installed folder), holds only
-the add-on (no tests, spikes or project notes), and disables cleanly.
+the add-on (no tests, spikes, project notes or the README's images), and disables cleanly.
 
     blender --command extension build --output-dir <dist>
     BLENDER_USER_RESOURCES=<scratch folder> blender -b --factory-startup --python tests/blender/test_package.py -- <dist>/interpose-<version>.zip
@@ -65,8 +65,9 @@ def main(zip_path):
 
     folder = os.path.dirname(sys.modules[MODULE].__file__)
     files = set(os.listdir(folder))
-    checks.check(not files & {"tests", "spikes", "CLAUDE.md", "CLAUDE.local.md", "ROADMAP.md", "DESIGN.md", ".git"},
-                 f"no tests, spikes or project notes in the package ({sorted(files)})")
+    checks.check(not files & {"tests", "spikes", "docs", "CLAUDE.md", "CLAUDE.local.md", "ROADMAP.md", "DESIGN.md",
+                              ".git"},
+                 f"no tests, spikes, project notes or docs in the package ({sorted(files)})")
     checks.check({"LICENSE", "README.md", "presets", "blender_manifest.toml"} <= files,
                  "LICENSE, README, presets and manifest packaged")
 

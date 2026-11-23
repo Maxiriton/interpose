@@ -26,7 +26,7 @@ copyright = [
 network = "Download the motion models you install, and their weights"
 files = "Install the motion models, import and export rig profiles"
 
-# Only the add-on goes into the package: not the tests, spikes or project notes.
+# Only the add-on goes into the package: not the tests, spikes, project notes or the README's images.
 # https://docs.blender.org/manual/en/dev/advanced/extensions/command_line_arguments.html#command-line-args-extension-build
 [build]
 paths_exclude_pattern = [
@@ -42,6 +42,7 @@ paths_exclude_pattern = [
   "/dist/",
   "/spikes/",
   "/tests/",
+  "/docs/",
   "/CLAUDE.md",
   "/CLAUDE.local.md",
   "/ROADMAP.md",
